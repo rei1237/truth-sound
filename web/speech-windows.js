@@ -26,16 +26,23 @@ export function speechWindows(x){
 export function uncoveredSpeech(samples,spans){
   const gaps=[];let cursor=0;
   function inspect(end){
-    if(end-cursor<4000)return;
+    if(end-cursor<960)return;
     let voiced=0;
     for(let a=cursor;a+320<=end;a+=320){
       let power=0;for(let i=a;i<a+320;i++)power+=samples[i]**2;
-      if(power/320>0.003**2)voiced++;
+      if(power/320>0.0003**2)voiced++;
     }
-    if(voiced>=5)gaps.push([cursor,end]);
+    if(voiced>=2)gaps.push([cursor,end]);
   }
   for(const [a,b] of spans.slice().sort((x,y)=>x[0]-y[0])){
     inspect(a);cursor=Math.max(cursor,b);
   }
   inspect(samples.length);return gaps;
+}
+
+export function padShortSpeech(samples){
+  if(samples.length>=16000)return samples;
+  const padded=new Float32Array(Math.max(16000,samples.length+8000));
+  padded.set(samples,4000);
+  return padded;
 }

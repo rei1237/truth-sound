@@ -166,7 +166,7 @@ function startAsr(selected){
     const variant={mode,from:bounds[0],to:bounds[1]};
     const input='dual';
     const samples=selected?selectedAudio(source,...bounds,mode):null;
-    worker=new Worker(new URL('./asr.js?v=compare1',import.meta.url),{type:'module'});
+    worker=new Worker(new URL('./asr.js?v=short1',import.meta.url),{type:'module'});
     const pending=!selected&&review.hasRows()?[]:null;
     review.log('녹취 시작',{rangeSeconds:bounds.map(i=>i/16000),input,selected,
       sources:['original',mode],variant,listeningProcessing:!selected?source.full.metadata:'clarity-v3 · short-window level control, max +38 dB'});

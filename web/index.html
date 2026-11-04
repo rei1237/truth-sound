@@ -63,7 +63,7 @@
         <button id="compareFull">같은 위치에서 원본과 비교</button> <a id="fullDownload" download>보정본 WAV 저장</a></details>
       </section>
       <section role="tabpanel" id="transcript" aria-labelledby="tab-transcript" hidden>
-        <h2>화자별 녹취록</h2><p>원본과 보정본의 문구가 다르면 두 후보를 대조하세요.</p>
+        <h2>화자별 녹취록</h2><p>1초 미만의 짧은 소리도 인식합니다. 불확실한 후보는 구간을 듣고 확인하세요.</p>
         <button id="addLine" disabled>선택 구간에 줄 추가</button>
         <label>표시할 화자<select id="filter"><option value="">전체 화자</option></select></label><datalist id="names"></datalist>
         <p id="counts"></p><fieldset id="reviewRows" disabled></fieldset><p id="reviewStatus" role="status"></p>
@@ -80,4 +80,4 @@
 <footer id="statusbar">
   <fieldset id="bounds" disabled><label>선택 시작<input id="start" type="number" min="0" step="0.001" value="0"></label><label>끝<input id="end" type="number" min="0" step="0.001" value="0"></label></fieldset>
   <span>길이 <b id="spanLength">—</b></span><span>초점 트랙 <b id="focusName">—</b></span><span class="sp"></span><span>전체 <b id="endtime">—</b></span>
-</footer></div><audio id="original" aria-label="원본 녹음"></audio><script type="module" src="app.js?v=speakers2"></script></body></html>
+</footer></div><audio id="original" aria-label="원본 녹음"></audio><script type="module" src="app.js?v=short1"></script></body></html>

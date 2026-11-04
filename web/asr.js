@@ -2,7 +2,7 @@ import { env, pipeline } from './vendor/transformers.min.js';
 import { modelBase } from './model-base.js';
 import {pairCandidates} from './candidates.js';
 import {readPcm} from './full-audio.js';
-import {speechWindows,uncoveredSpeech} from './speech-windows.js';
+import {speechWindows,uncoveredSpeech,padShortSpeech} from './speech-windows.js?v=short1';
 env.allowRemoteModels=false;
 env.localModelPath=modelBase;
 env.backends.onnx.wasm.wasmPaths=new URL('./vendor/',import.meta.url).href;
@@ -19,6 +19,12 @@ async function recognize(slice,at,recoverGaps){
   const options={language:'korean',task:'transcribe',do_sample:false};
   // Bound decoding on near-silent windows; the recognizer can otherwise repeat text far beyond their duration.
   const tokenLimit=seconds=>Math.min(300,Math.max(32,Math.ceil(seconds*14)+12));
+  if(length<1){
+    const result=await model(padShortSpeech(slice),{...options,return_timestamps:false,max_new_tokens:32});
+    const words=candidate(result.text);
+    send(0,length,words==='[판독 불가]'?words:'[불확실 · 짧은 발화] '+words);
+    return lines;
+  }
   const result=await model(slice,{...options,return_timestamps:true,max_new_tokens:tokenLimit(length)});
   const chunks=result.chunks?.filter(c=>c.text.trim())||[];
   const spans=[];
@@ -32,7 +38,7 @@ async function recognize(slice,at,recoverGaps){
     for(const [a,b] of uncoveredSpeech(slice,spans)){
       let text='[판독 불가]';
       try{
-        const retry=await model(slice.subarray(a,b),{...options,return_timestamps:false,max_new_tokens:tokenLimit((b-a)/16000)});
+        const retry=await model(padShortSpeech(slice.subarray(a,b)),{...options,return_timestamps:false,max_new_tokens:tokenLimit((b-a)/16000)});
         const words=candidate(retry.text);if(words!=='[판독 불가]')text='[불확실] '+words;
       }catch{/* Preserve the interval for original-audio review. */}
       send(a/16000,b/16000,text);

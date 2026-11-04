@@ -1,7 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {block,overlap,pad,processBlock,waveBlob,readPcm} from '../../web/full-audio.js';
-import {speechWindows,uncoveredSpeech} from '../../web/speech-windows.js';
+import {speechWindows,uncoveredSpeech,padShortSpeech} from '../../web/speech-windows.js';
+test('recover a faint 80ms reply and pad short input without shifting stored timestamps',()=>{
+  const x=new Float32Array(16000);x.fill(.0005,6400,7680);
+  assert.deepEqual(uncoveredSpeech(x,[[0,6400],[7680,16000]]),[[6400,7680]]);
+  assert.deepEqual(uncoveredSpeech(new Float32Array(16000),[]),[]);
+  const short=x.slice(6400,7680),padded=padShortSpeech(short);
+  assert.equal(padded.length,16000);assert.deepEqual(padded.slice(4000,5280),short);
+  assert.ok(padded.slice(0,4000).every(v=>v===0));
+});
 test('retry audible gaps in model timestamps, leaving silence and covered speech alone',()=>{
   const x=new Float32Array(32000);x.fill(.004,11000,13400);
   assert.deepEqual(uncoveredSpeech(x,[[20000,26000],[0,8000]]),[[8000,20000]]);
