@@ -1,4 +1,4 @@
-import {createReview} from './review.js?v=studio1';
+import {createReview} from './review.js?v=speakers2';
 import {createEditor,drawPeaks,peaksFrom} from './editor.js';
 import {renderFull,method,readPcm} from './full-audio.js';
 import {clarify,liftForListening,wav} from './audio.js?v=clarity3';
@@ -203,5 +203,12 @@ function startAsr(selected){
   }catch(e){halt(e.message);}
 }
 $('asr').onclick=()=>startAsr(false);rangeButton.onclick=()=>startAsr(true);
+$('separate').onclick=()=>{
+  if(recognizing||review.isEstimating()||!source?.full)return;
+  if(!review.hasRows()){startAsr(false);return;}
+  editor.tab('transcript');busy(true);
+  $('asrstatus').textContent='기존 녹취의 화자를 비교합니다.';
+  void review.estimate(message=>halt(message));
+};
 $('stop').onclick=()=>{review.cancelEstimate();review.log('녹취 중지');halt('녹취를 중지했습니다. 작성된 줄은 남아 있습니다.');};
 editor.loaded(null);waveform(null);

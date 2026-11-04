@@ -64,3 +64,6 @@ textarea{resize:vertical;line-height:1.55}
   #toolbar .sp{display:none}#statusbar{font-size:11px}.clock{font-size:16px}#ticks span:nth-child(even){display:none}
   .tracks-hint{padding:5px 8px}.tabs{margin:6px 10px}
 }
+.speakerLane{position:relative;background:var(--trk);min-height:52px}
+.speakerLane button{position:absolute;top:8px;height:30px;padding:2px 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-align:left;color:#93c8ab}
+#speakerTracks .ctl button{font-size:11px;text-align:left}

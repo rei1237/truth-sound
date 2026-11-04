@@ -1,5 +1,5 @@
 import {bundleReport,download,effectiveSpeaker,formatTime,report,textReport,wordReport} from './report.js?v=compare1';
-import {readPcm} from './full-audio.js';
+import {readPcm,waveBlob} from './full-audio.js';
 const $=id=>document.getElementById(id);
 const now=()=>new Date().toISOString();
 function el(tag,text=''){const node=document.createElement(tag);node.textContent=text;return node;}
@@ -46,8 +46,9 @@ export function createReview(getSource,getRange,reviewAudio){
   }
   function updateButtons(){
     const unavailable=!getSource()||locked||!!speakerWorker;
-    for(const id of ['addLine','estimate','word','log','save','bundle'])$(id).disabled=unavailable;
-    if(!rows.length)$('estimate').disabled=$('word').disabled=$('bundle').disabled=true;
+    for(const id of ['addLine','word','log','save','bundle'])$(id).disabled=unavailable;
+    $('separate').disabled=unavailable||!getSource()?.full;
+    if(!rows.length)$('word').disabled=$('bundle').disabled=true;
     $('reviewRows').disabled=locked||!!speakerWorker;
   }
   function reset(){
@@ -88,10 +89,50 @@ export function createReview(getSource,getRange,reviewAudio){
   }
   function paint(){
     updateButtons();labels();
+    paintSpeakerTracks();
     const select=$('filter');
     const cards=rows.slice().sort((a,b)=>a.start-b.start||a.end-b.end)
       .filter(r=>!select.value||effectiveSpeaker(r)===select.value).map(card);
     $('reviewRows').replaceChildren(...cards);
+  }
+  function paintSpeakerTracks(){
+    const host=$('speakerTracks'),source=getSource();
+    host.replaceChildren();
+    if(!source?.full||!rows.some(r=>r.suggestion||r.speaker)&&!events.some(e=>['화자 추정 완료','화자 추정 대상 없음'].includes(e.action)))return;
+    const groups=new Map(),duration=source.samples.length/16000;
+    for(const r of rows.filter(r=>!r.excluded&&r.end>r.start).sort((a,b)=>a.start-b.start)){
+      const label=effectiveSpeaker(r);
+      if(!groups.has(label))groups.set(label,[]);
+      groups.get(label).push(r);
+    }
+    for(const [name,items] of groups){
+      const track=el('div');track.className='row transcriptLane';
+      const controls=el('div');controls.className='ctl';
+      const select=button(name+' · '+items.length+'구간',()=>{
+        $('tab-transcript').click();$('filter').value=name;paint();
+      });
+      const save=button('구간 WAV 저장',()=>{
+        const parts=[];let end=0,length=0;
+        for(const r of items){
+          const a=Math.max(end,Math.round(r.start*16000)),b=Math.min(source.samples.length,Math.round(r.end*16000));
+          if(b<=a)continue;
+          parts.push(source.full.blob.slice(44+a*2,44+b*2));length+=b-a;end=b;
+        }
+        download(waveBlob(parts,length),source.name+'-'+name+'-발화구간.wav');
+        log('화자별 구간 WAV 저장',{speaker:name,source:'full-clarity',rowIds:items.map(r=>r.id)});
+      });
+      save.title='이 화자로 추정된 보정본 구간을 이어 저장합니다. 겹친 목소리도 포함됩니다.';
+      controls.append(select,save);
+      const lane=el('div');lane.className='speakerLane';
+      for(const r of items){
+        const play=button(r.text||'후보 비교',()=>{
+          $('tab-transcript').click();$('filter').value=name;paint();void listen(r);
+        });
+        play.style.left=(100*r.start/duration)+'%';play.style.width=(100*(r.end-r.start)/duration)+'%';
+        play.title=name+' · '+formatTime(r.start)+' · 원본 구간 듣기';lane.append(play);
+      }
+      track.append(controls,lane);host.append(track);
+    }
   }
   function card(r){
     const box=el('article');box.className='utterance';box.dataset.start=r.start;box.dataset.end=r.end;
@@ -102,7 +143,7 @@ export function createReview(getSource,getRange,reviewAudio){
       r.suggestion?'자동 추정 '+r.suggestion:'',r.reviewedAt?'검수 완료':'검수 전',r.excluded?'문서 제외':''].filter(Boolean).join(' · '));
     const speaker=el('input');speaker.setAttribute('list','names');speaker.placeholder=r.suggestion||'화자 미상';speaker.value=r.speaker;
     const label=el('label','화자 이름 또는 번호');label.append(speaker);
-    speaker.onchange=()=>{revise(r,'speaker',speaker.value.trim());review.checked=false;info.textContent='화자 수정 · 재검수 필요';labels();};
+    speaker.onchange=()=>{revise(r,'speaker',speaker.value.trim());paint();};
     const field=el('textarea');field.value=r.text;field.setAttribute('aria-label','발화 내용');field.rows=2;
     field.placeholder=r.candidates?.different?'두 후보를 듣고 선택하거나 직접 적으세요.':'발화 내용을 입력하세요.';
     field.oninput=()=>{if(r.reviewedAt){r.reviewedAt=null;review.checked=false;info.textContent='수정됨 · 재검수 필요';}
@@ -143,7 +184,7 @@ export function createReview(getSource,getRange,reviewAudio){
     const eligible=rows.filter(r=>!r.excluded&&!r.reviewedAt && r.end-r.start>=1.5 && !/^\[판독/.test(r.text)).sort((a,b)=>a.start-b.start);
     const usesFull=r=>r.variant?.mode==='full'||r.input==='full-clarity';
     function finish(message){cancelEstimate();status.textContent=message;paint();done(message);}
-    if(!eligible.length){finish('자동으로 비교할 발화가 없습니다. 짧거나 불명확한 줄은 화자 미상으로 남깁니다.');return;}
+    if(!eligible.length){log('화자 추정 대상 없음');finish('자동으로 비교할 발화가 없습니다. 짧거나 불명확한 줄은 화자 미상으로 남깁니다.');return;}
     let job;
     try{
     job=speakerWorker=new Worker(new URL('./speakers.js',import.meta.url),{type:'module'});
@@ -168,7 +209,6 @@ export function createReview(getSource,getRange,reviewAudio){
     job.postMessage(items,items.map(i=>i.samples.buffer));
     }catch(e){if(speakerWorker===job||!job)finish('화자 추정 실패 · '+e.message);}
   }
-  $('estimate').onclick=()=>estimate();
   async function save(kind){
     const data=await report(getSource(),rows,events,{caseName:$('caseName').value.trim(),reviewer:$('reviewer').value.trim()});
     const prefix=data.original.filename+'-'+data.status;
