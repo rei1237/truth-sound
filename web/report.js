@@ -51,7 +51,7 @@ export async function wordReport(record){
     line('화자 표기',Array.from(new Set(included.map(effectiveSpeaker))).join(', ')||'없음'),
     p('녹취 내용',{heading:HeadingLevel.HEADING_1}));
   for(const r of included){
-    const origin=r.input==='clarified'?' · 보정 신호 인식':'';
+    const origin=r.input==='clarified'?' · 발음 선명화 신호 인식':r.input==='amplified'?' · 확대 신호 인식':'';
     body.push(p(formatTime(r.start)+' – '+formatTime(r.end)+'   '+effectiveSpeaker(r)+'   · '+(r.reviewedAt?'검수 완료':'검수 전')+origin,{keepNext:true}),
       ...((r.text.trim()||'[판독 불가]').split(/\r?\n/).map(t=>p(t,{spacing:{after:140}}))));
   }

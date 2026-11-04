@@ -1,5 +1,5 @@
 import {createReview} from './review.js';
-import {clarify,lift,wav} from './audio.js';
+import {clarify,liftForListening,wav} from './audio.js?v=clarity3';
 const $=id=>document.getElementById(id);
 const clock=t=>Math.floor(t/60).toString().padStart(2,'0')+':'+(t%60).toFixed(3).padStart(6,'0');
 let source=null, clipUrl='', worker=null, revision=0, offset=0;
@@ -27,11 +27,12 @@ function halt(message){
   worker?.terminate();worker=null;busy(false);if(message)$('asrstatus').textContent=message;
 }
 function revokeClip(){
+  $('clip').onloadedmetadata=null;
   $('clip').pause();$('clip').removeAttribute('src');$('clip').load();
   if(clipUrl)URL.revokeObjectURL(clipUrl);clipUrl='';
 }
 let loading=false;
-async function openFile(file){
+async function openFile(file,example=false){
   if(!file||loading)return;
   if(review.hasRows()&&!confirm('이 녹음의 초안을 저장하셨나요? 새 파일을 열면 현재 초안이 지워집니다.'))return;
   loading=true;$('pick').disabled=$('demo').disabled=true;
@@ -56,7 +57,9 @@ async function openFile(file){
       hash:[...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('')};
     $('original').src=source.url;$('filename').textContent=file.name;
     $('endtime').textContent=clock(mix.duration);$('start').value=0;$('end').value=Math.min(10,mix.duration).toFixed(3);
-    $('notice').textContent='원본 파일을 열었습니다. 녹음과 초안은 이 탭에만 있습니다.';
+    $('notice').textContent=example
+      ? '합성 예제입니다. 3.1초부터 작게 말하는 “지금 다시 확인해 주세요”를 구간 비교에서 들어보세요.'
+      : '원본 파일을 열었습니다. 녹음과 초안은 이 탭에만 있습니다.';
     $('asrstatus').textContent='녹취 범위를 선택하세요. 인식 결과는 검수 전 후보로 기록됩니다.';
     $('selection').disabled=false;busy(false);waveform(source.samples);
   }catch(e){$('notice').textContent='파일을 열지 못했습니다. '+(e.message||'WAV 또는 MP3 파일로 다시 시도하세요.');}
@@ -71,23 +74,43 @@ function range(){
 $('pick').onclick=()=>$('file').click();
 $('file').onchange=async e=>{const file=e.target.files[0];e.target.value='';await openFile(file);};
 $('demo').onclick=async ()=>{
-  try{const res=await fetch('./example.wav');if(!res.ok)throw Error();await openFile(new File([await res.blob()],'합성 예제 · 네, 들려요.wav',{type:'audio/wav'}));}
+  try{const res=await fetch('./example.wav?v=clarity3');if(!res.ok)throw Error();await openFile(new File([await res.blob()],'합성 예제 · 작은 문장.wav',{type:'audio/wav'}),true);}
   catch{$('notice').textContent='예제를 열 수 없습니다. 파일 선택을 이용하세요.';}
 };
 $('here').onclick=()=>{
   const d=source.samples.length/16000,a=Math.max(0,Math.min($('original').currentTime,d-0.001));
   $('start').value=a.toFixed(3);$('end').value=Math.min(d,a+10).toFixed(3);
+  revokeClip();$('clipstatus').textContent='선택한 구간을 재생하세요.';
 };
-$('render').onclick=async ()=>{
+let clipBounds='';
+async function renderClip(switchMode=false){
+  let requestedUrl='';
   try{
     const [a,b]=range(),mode=$('mode').value,x=source.samples.subarray(a,b);
+    const player=$('clip'),original=$('original'),key=a+'-'+b;
+    const same=!!clipUrl && clipBounds===key;
+    const playing=!player.paused || !original.paused;
+    let position=switchMode && same && !player.ended ? player.currentTime : 0;
+    if(switchMode && !original.paused && original.currentTime>=a/16000 && original.currentTime<b/16000){
+      position=original.currentTime-a/16000;
+    }
     const audio=mode==='clear'?clarify(x,source.samples.subarray(Math.max(0,a-8000),b+8000)):
-      mode==='lift'?lift(x):x;
-    revokeClip();clipUrl=URL.createObjectURL(wav(audio));$('clip').src=clipUrl;
-    $('clipstatus').textContent=clock(a/16000)+' – '+clock(b/16000)+' · '+$('mode').selectedOptions[0].text;
-    $('original').pause();await $('clip').play();
-  }catch(e){$('clipstatus').textContent=e.message;}
-};
+      mode==='lift'?liftForListening(x):x;
+    let before=0,after=0;
+    for(let i=0;i<x.length;i++){before+=x[i]*x[i];after+=audio[i]*audio[i];}
+    const delta=before>0 && after>0 ? 10*Math.log10(after/before) : 0;
+    revokeClip();requestedUrl=clipUrl=URL.createObjectURL(wav(audio));clipBounds=key;
+    if(position>0)player.onloadedmetadata=()=>{player.currentTime=Math.min(position,(b-a)/16000);};
+    player.src=clipUrl;
+    $('clipstatus').textContent=clock(a/16000)+' – '+clock(b/16000)+' · '+$('mode').selectedOptions[0].text+
+      ' · 구간 평균 음량 '+(delta>=0?'+':'')+delta.toFixed(1)+' dB';
+    if(!switchMode || playing){original.pause();await player.play();}
+  }catch(e){if(!requestedUrl || requestedUrl===clipUrl)$('clipstatus').textContent=e.message;}
+}
+$('render').onclick=()=>renderClip();
+$('mode').onchange=()=>renderClip(true);
+$('repeatClip').onchange=()=>{$('clip').loop=$('repeatClip').checked;};
+for(const id of ['start','end'])$(id).oninput=()=>{revokeClip();$('clipstatus').textContent='선택한 구간을 다시 재생하세요.';};
 $('original').onplay=()=>$('clip').pause();
 $('clip').onplay=()=>$('original').pause();
 const rangeButton=document.createElement('button');rangeButton.id='rangeAsr';rangeButton.className='sub';
@@ -99,17 +122,20 @@ function startAsr(selected){
     if(!selected&&review.hasRows()&&!confirm('현재 초안을 전체 녹취 결과로 바꿀까요?'))return;
     offset=bounds[0]/16000;
     const raw=source.samples.subarray(...bounds);
-    const useClear=selected && $('mode').value==='clear';
-    const samples=useClear ? clarify(raw,source.samples.subarray(Math.max(0,bounds[0]-8000),bounds[1]+8000)) : raw.slice();
+    const mode=selected ? $('mode').value : 'original';
+    const input=mode==='clear'?'clarified':mode==='lift'?'amplified':'original';
+    const samples=mode==='clear' ? clarify(raw,source.samples.subarray(Math.max(0,bounds[0]-8000),bounds[1]+8000))
+      : mode==='lift' ? liftForListening(raw) : raw.slice();
     worker=new Worker(new URL('./asr.js',import.meta.url),{type:'module'});
     const pending=!selected&&review.hasRows()?[]:null;
-    review.log('녹취 시작',{rangeSeconds:bounds.map(i=>i/16000),input:useClear?'clarified':'original',selected});
+    review.log('녹취 시작',{rangeSeconds:bounds.map(i=>i/16000),input,selected,
+      listeningProcessing:mode==='original'?null:'clarity-v3 · short-window level control, max +38 dB'});
     busy(true);$('asrstatus').textContent='이 기기에서 모델을 준비합니다. 첫 실행은 시간이 걸릴 수 있습니다.';
     worker.onmessage=({data})=>{
       if(data.status)$('asrstatus').textContent=data.status;
       if(data.line){
         const {start,end,text}=data.line;
-        const args=[start+offset,end+offset,text,useClear?'clarified':'original'];
+        const args=[start+offset,end+offset,text,input];
         if(pending)pending.push(args);else review.add(...args);
       }
       if(data.error)review.log('녹취 실패',{error:data.error});

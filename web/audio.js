@@ -8,6 +8,35 @@ export function lift(x) {
   return x.map(v => v * gain);
 }
 
+// Local level control for listening. One loud syllable must not limit every quieter one.
+export function liftForListening(x, speechEvidence) {
+  if (!x.length) return x.slice();
+  const hop=160, count=Math.ceil(x.length/hop);
+  const energy=new Float64Array(count+1), peaks=new Float64Array(count);
+  for(let i=0;i<x.length;i++){
+    const k=Math.floor(i/hop);
+    energy[k+1]+=x[i]*x[i]; peaks[k]=Math.max(peaks[k],Math.abs(x[i]));
+  }
+  for(let k=0;k<count;k++)energy[k+1]+=energy[k];
+  const gains=new Float64Array(count);
+  for(let k=0;k<count;k++){
+    const left=Math.max(0,k-3), right=Math.min(count,k+4);
+    const rms=Math.sqrt((energy[right]-energy[left])/(Math.min(right*hop,x.length)-left*hop));
+    const confidence=speechEvidence ? speechEvidence[Math.min(speechEvidence.length-1,Math.floor(k*hop/256)+1)] : 1;
+    // Reduce gain in background-only frames. A raised noise floor obscures word endings.
+    const wanted=confidence*Math.min(38,Math.max(0,20*Math.log10(0.14/Math.max(rms,1e-9))));
+    gains[k]=10**(wanted/20);
+  }
+  const safe=gains.map((gain,k)=>{
+    const peak=Math.max(peaks[k],peaks[Math.max(0,k-1)],peaks[Math.min(k+1,count-1)]);
+    return Math.min(gain,0.94/Math.max(1e-9,peak));
+  });
+  return x.map((v,i)=>{
+    const k=Math.floor(i/hop), t=(i%hop)/hop;
+    return v*(safe[k]+(safe[Math.min(count-1,k+1)]-safe[k])*t);
+  });
+}
+
 export function clarify(x, context) {
   const n = 512, hop = n / 2, fft = new FFT(n);
   const window = Float64Array.from({length:n}, (_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / n));
@@ -24,30 +53,35 @@ export function clarify(x, context) {
     let sum=0;
     const power = powers.map((_,k) => spectrum[2*k]**2+spectrum[2*k+1]**2);
     for (const v of power) sum+=v;
-    if(sum>1e-7) power.forEach((v,k) => powers[k].push(v));
+    if(Number.isFinite(sum)) power.forEach((v,k) => powers[k].push(v));
   }
   const floor=powers.map(values => values.length<6 ? 0 : values.sort((a,b)=>a-b)[Math.floor(values.length*0.25)]);
   const result=new Float32Array(x.length), weight=new Float32Array(x.length);
-  const bands=[[0,-12],[65,-10],[180,0],[800,0],[1800,2.5],[3500,2.5],[6000,0],[8000,-2]];
+  const bands=[[0,-22],[70,-18],[140,-6],[300,-2],[800,0],[1600,3],[3200,6],[4800,4],[6500,1],[8000,-3]];
   const eq=floor.map((_,k)=>{
     const f=k*RATE/n, right=bands.findIndex(([hz])=>hz>=f);
     if(right<=0) return 10**(bands[0][1]/20);
     const [a,lo]=bands[right-1], [b,hi]=bands[right];
     return 10**((lo+(hi-lo)*(f-a)/(b-a))/20);
   });
+  const evidence=[];
   for(let pos=-hop;pos<x.length;pos+=hop) {
     analyze(x,pos);
+    let voicePower=0, noisePower=0;
     for(let k=0;k<=hop;k++){
       const p=spectrum[2*k]**2+spectrum[2*k+1]**2;
-      const gain=Math.sqrt(Math.max(0.13,1-1.4*floor[k]/Math.max(p,1e-15)))*eq[k];
+      if(k>=6 && k<=170){voicePower+=p;noisePower+=floor[k];}
+      const gain=Math.sqrt(Math.max(0.05,1-2.4*floor[k]/Math.max(p,1e-15)))*eq[k];
       spectrum[2*k]*=gain; spectrum[2*k+1]*=gain;
     }
+    const ratio=voicePower/Math.max(noisePower*3.2,1e-12);
+    evidence.push(Math.max(0,Math.min(1,(ratio-1.1)/1.8)));
     fft.completeSpectrum(spectrum); fft.inverseTransform(inverse,spectrum);
     for(let i=Math.max(0,-pos);i<Math.min(n,x.length-pos);i++){
       result[pos+i]+=inverse[2*i]*window[i]; weight[pos+i]+=window[i]**2;
     }
   }
-  return lift(result.map((v,i)=>v/Math.max(weight[i],1e-10)));
+  return liftForListening(result.map((v,i)=>v/Math.max(weight[i],1e-10)),evidence);
 }
 
 export function wav(x) {

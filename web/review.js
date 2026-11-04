@@ -75,7 +75,7 @@ export function createReview(getSource,getRange){
     const box=el('article');box.className='utterance';
     const head=el('div');head.className='rowhead';
     head.append(el('strong',formatTime(r.start)+' – '+formatTime(r.end)),button('▶ 원본 구간 듣기',()=>listen(r)));
-    const info=el('small',[r.input==='clarified'?'보정 신호 후보':r.input==='manual'?'직접 작성':'AI 후보',
+    const info=el('small',[r.input==='clarified'?'발음 선명화 후보':r.input==='amplified'?'작은 말소리 확대 후보':r.input==='manual'?'직접 작성':'AI 후보',
       r.suggestion?'자동 추정 '+r.suggestion:'',r.reviewedAt?'검수 완료':'검수 전',r.excluded?'문서 제외':''].filter(Boolean).join(' · '));
     const speaker=el('input');speaker.setAttribute('list','names');speaker.placeholder=r.suggestion||'화자 미상';speaker.value=r.speaker;
     const label=el('label','화자 이름 또는 번호');label.append(speaker);
