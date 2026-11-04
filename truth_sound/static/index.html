@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Truth Sound</title>
+<link rel="stylesheet" href="style.css">
+<script type="module" src="app.js"></script>
+</head>
+<body class="empty">
+<div id="app">
+  <header id="topbar">
+    <a class="brand" href="#/" title="처음 화면"><span class="logo"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M1 6h1.5M3.5 3v6M6 1.5v9M8.5 3.5v5M11 6h-.5"/></svg></span>Truth Sound</a>
+    <div class="file" id="caseInfo" hidden>
+      <b id="caseName"></b>
+      <button type="button" class="seal wait" id="caseSeal" title="원본 SHA-256"><i></i><span id="caseHash"></span><b id="sealState">확인 중</b></button>
+      <span class="seal-warn" id="sealWarn" role="alert" hidden></span>
+    </div>
+    <span class="sp"></span>
+    <button type="button" id="historyBtn" disabled hidden>처리 기록</button>
+    <button type="button" id="exportBtn" class="pri" disabled hidden>내보내기</button>
+    <button type="button" id="openBtn" class="pri">파일 열기</button>
+  </header>
+
+  <div id="toolbar" class="dim">
+    <div class="grp" role="group" aria-label="재생">
+      <button type="button" id="tbHome" title="처음으로 (Home)" aria-label="처음으로"><svg viewBox="0 0 16 16"><path d="M3 3h2v10H3zM14 3v10L6 8z"/></svg></button>
+      <button type="button" id="tbPlay" data-state="stopped" title="재생 (Space)" aria-label="재생 (Space)"><svg class="i-play" viewBox="0 0 16 16"><path d="M4 2.5v11L13.5 8z"/></svg><svg class="i-pause" viewBox="0 0 16 16"><path d="M4 3h3v10H4zM9 3h3v10H9z"/></svg></button>
+      <button type="button" id="tbEnd" title="끝으로 (End)" aria-label="끝으로"><svg viewBox="0 0 16 16"><path d="M11 3h2v10h-2zM2 3v10l8-5z"/></svg></button>
+      <button type="button" id="tbLoop" aria-pressed="false" title="반복 (L): 고른 구간을 되풀이해서 듣기" aria-label="반복"><svg viewBox="0 0 16 16"><path d="M3 6a3 3 0 0 1 3-3h6V1l3 3-3 3V5H6a1 1 0 0 0-1 1v1H3zm10 4a3 3 0 0 1-3 3H4v2l-3-3 3-3v2h6a1 1 0 0 0 1-1V9h2z"/></svg></button>
+    </div>
+    <div class="grp" role="group" aria-label="도구">
+      <button type="button" id="tbUndo" title="마지막 컷 되돌리기 (Ctrl+Z)" aria-label="마지막 컷 되돌리기"><svg viewBox="0 0 16 16"><path d="M6 3H3.7l1.6-1.6L4 0 0 4l4 4 1.3-1.4L3.7 5H6a5 5 0 1 1-4.4 7.4L0 13.2A7 7 0 1 0 6 3z"/></svg></button>
+      <button type="button" id="tbRedo" title="되돌린 컷 다시 적용 (Ctrl+Y)" aria-label="되돌린 컷 다시 적용"><svg viewBox="0 0 16 16"><path d="M10 3h2.3l-1.6-1.6L12 0l4 4-4 4-1.3-1.4L12.3 5H10a5 5 0 1 0 4.4 7.4l1.6.8A7 7 0 1 1 10 3z"/></svg></button>
+      <button type="button" id="tbCut" disabled title="선택 구간 자르기 (Delete / Backspace)" aria-label="선택 구간 자르기"><svg viewBox="0 0 16 16"><path d="M5.1 6.6 14 1.7l.8 1.5-8.2 4.5 8.2 4.5-.8 1.5-8.9-4.9A3 3 0 1 1 4 7.7a3 3 0 1 1 1.1-1.1zM3 3.5A1.5 1.5 0 1 0 3 6a1.5 1.5 0 0 0 0-2.5zm0 6.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg></button>
+      <button type="button" disabled class="on" title="선택" aria-label="선택"><svg viewBox="0 0 16 16"><path d="M7 2h2v12H7zM4 2h8v1.5H4zM4 12.5h8V14H4z"/></svg></button>
+      <button type="button" disabled title="확대" aria-label="확대"><svg viewBox="0 0 16 16"><path d="M6.5 1a5.5 5.5 0 0 1 4.4 8.8l4 4-1.1 1.1-4-4A5.5 5.5 0 1 1 6.5 1zm0 1.6a3.9 3.9 0 1 0 0 7.8 3.9 3.9 0 0 0 0-7.8zM5.8 4h1.4v1.8H9v1.4H7.2V9H5.8V7.2H4V5.8h1.8z"/></svg></button>
+    </div>
+    <div class="clock" id="clock" aria-label="현재 시각">00:00:00.000</div>
+    <div class="speed" role="group" aria-label="듣는 속도" title="느리게 들어도 목소리 높이는 그대로입니다">속도
+      <button type="button" data-speed="1" aria-pressed="true" title="보통 속도">1×</button><button type="button" data-speed="0.75" aria-pressed="false" title="조금 느리게">0.75×</button><button type="button" data-speed="0.5" aria-pressed="false" title="절반 속도로 느리게">0.5×</button><button type="button" data-speed="0.25" aria-pressed="false" title="4분의 1 속도로 아주 느리게">0.25×</button>
+    </div>
+    <div class="meter" id="meter" role="img" aria-label="지금 나는 소리 크기" title="지금 나는 소리 크기"><i></i></div>
+    <span class="sp"></span>
+    <span id="processWhy" hidden></span>
+    <button type="button" id="transcribeBtn" disabled>녹취록 만들기</button>
+    <button type="button" id="processBtn" class="pri" disabled>화자 분리</button>
+  </div>
+
+  <div id="procstrip" hidden></div>
+
+  <div id="stage">
+    <main id="workarea">
+      <div id="ruler" class="dim"></div>
+      <div id="speechband"></div>
+      <div id="tracks"></div>
+      <div id="hscroll"></div>
+
+      <section id="dropzone" aria-label="녹음 파일 넣기">
+        <div class="dz">
+          <div class="dzicon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></div>
+          <h1>녹음 파일을 끌어다 놓으세요</h1>
+          <p><button type="button" id="pickBtn" class="pri">파일 고르기</button></p>
+          <p class="hint">m4a · mp3 · wav · amr · 3gp · aac · ogg · opus · flac · wma<br>원본은 바뀌지 않고 그대로 보관됩니다</p>
+          <div class="recent">
+            <h2>최근 녹음</h2>
+            <ul id="recentList"></ul>
+            <p class="hint" id="recentEmpty" hidden>아직 연 녹음이 없습니다.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="splitter" role="separator" aria-orientation="vertical" aria-label="패널 너비" aria-valuemin="280" aria-valuemax="600" tabindex="0"></div>
+
+    <aside id="panel">
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" data-tab="analysis">구간 분석</button>
+        <button type="button" role="tab" data-tab="transcript">녹취록</button>
+        <button type="button" role="tab" data-tab="samples">샘플</button>
+      </div>
+      <div class="panes">
+        <section data-pane="analysis" role="tabpanel" id="analysisBody"><p class="hint">파형에서 구간을 고르면 여기에 분석이 나옵니다.</p></section>
+        <section data-pane="transcript" role="tabpanel" id="transcriptBody"><p class="hint">처리가 끝나면 녹취록이 여기에 나옵니다.</p></section>
+        <section data-pane="samples" role="tabpanel" id="samplesBody"><p class="hint">목소리 샘플을 여기에서 고릅니다.</p></section>
+      </div>
+    </aside>
+  </div>
+
+  <footer id="statusbar">
+    <label>선택 시작<input id="selStart" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="—" disabled></label>
+    <label>끝<input id="selEnd" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="—" disabled></label>
+    <label>길이<input id="selLen" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="—" disabled></label>
+    <span>초점 트랙<b id="focusName">—</b></span>
+    <span class="sp"></span>
+    <span id="fileInfo"></span>
+    <span id="saveState" aria-live="polite"></span>
+  </footer>
+</div>
+
+<div id="overlay"></div>
+<input type="file" id="fileInput" accept="audio/*,.m4a,.amr,.3gp,.aac,.mp3,.wav,.ogg,.opus,.flac,.wma" hidden>
+</body>
+</html>

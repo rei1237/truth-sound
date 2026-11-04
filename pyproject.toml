@@ -1,0 +1,35 @@
+[project]
+name = "truth-sound"
+version = "0.1.0"
+description = "통화 녹음에서 사람별 목소리를 나누고 녹취록 초안을 만드는 로컬 프로그램"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "torch",
+    "torchaudio",
+    "speechbrain",
+    "faster-whisper",
+    "av",
+    "numpy",
+    "scipy",
+    "soundfile",
+    "fastapi",
+    "uvicorn",
+    "python-multipart",
+    "python-docx",
+]
+
+[dependency-groups]
+dev = ["pytest", "httpx"]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+torchaudio = { index = "pytorch-cu128" }
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
