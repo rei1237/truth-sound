@@ -12,13 +12,18 @@
 <section class="bench"><div class="top"><div><span class="step">01 / SOURCE</span><h2 id="filename">녹음 열기</h2></div><button id="pick">파일 선택</button><input type="file" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm,.aac,.flac" hidden id="file"></div>
 <p id="notice" role="status">녹음은 이 탭에서만 처리합니다. 파일을 선택하거나 합성 예제로 시작하세요.</p><button class="sub" id="demo">합성 예제 열기</button>
 <div class="scope"><canvas id="wave" width="1200" height="100" aria-label="녹음 파형"></canvas><div class="ruler"><span>00:00.000</span><span id="endtime">--:--.---</span></div></div>
-<label for="original">원본 재생 · 보정 전</label><audio controls id="original" aria-label="원본 녹음"></audio></section>
+<label for="original">원본 재생 · 보정 전</label><audio controls id="original" aria-label="원본 녹음"></audio>
+<h2>전체 녹음 자동 보정</h2><p>파일을 열면 작은 말소리를 찾아 키우고 지속적인 배경음을 줄입니다. 구간을 선택할 필요가 없습니다.</p>
+<p id="fullStatus" role="status">녹음을 열면 자동 보정을 시작합니다.</p>
+<div id="fullResult" hidden><label for="enhanced">전체 보정본 재생</label><audio controls id="enhanced"></audio>
+<button class="sub" id="compareFull">같은 위치에서 원본과 비교</button> <a id="fullDownload" download>보정본 WAV 저장</a></div>
+<button class="sub" id="retryFull" hidden>전체 보정 다시 시도</button></section>
 <div class="panels"><section class="panel"><span class="step">02 / LISTEN</span><h2>구간 비교</h2><p>원본에서 듣고 싶은 위치를 찾은 뒤 최대 30초를 골라 보정하세요.</p>
 <fieldset id="selection" disabled><div class="times"><label>시작 (초)<input id="start" type="number" min="0" step="0.001" value="0"></label><label>끝 (초)<input id="end" type="number" min="0" step="0.001" value="3"></label></div>
 <button class="sub" id="here">재생 위치에서 선택</button><label>청취 방식<select id="mode"><option value="clear">발음 선명화 · 잡음 줄이기</option><option value="lift">작은 말소리 확대</option><option value="original">보정 전</option></select></label><p class="fine">아래 구간을 들으면서 방식을 바꾸면 같은 위치에서 비교할 수 있습니다.</p>
 <button id="render">구간 듣기</button><label class="repeat"><input type="checkbox" id="repeatClip"> 선택 구간 반복</label></fieldset><audio id="clip" controls aria-label="선택 구간 청취 보조"></audio><p role="status" id="clipstatus"></p></section>
-<section class="panel"><span class="step">03 / TRANSCRIPT</span><h2>한국어 녹취 초안</h2><p>처음에는 약 80MB의 AI 모델을 받습니다. 녹음과 작성한 문구는 서버로 전송하지 않습니다.</p>
-<button id="asr" disabled>AI 녹취 시작</button> <button id="stop" class="sub" hidden>중지</button>
+<section class="panel"><span class="step">03 / TRANSCRIPT</span><h2>화자별 녹취 초안</h2><p>전체 보정본으로 한국어 녹취를 작성한 뒤 화자를 자동으로 구분합니다. 처음에는 녹취·화자 모델을 내려받습니다. 녹음과 녹취록은 기기 안에서 처리합니다.</p>
+<button id="asr" disabled>전체 보정본으로 화자별 녹취</button> <button id="stop" class="sub" hidden>중지</button>
 <p id="asrstatus" role="status">녹음을 열면 시작할 수 있습니다.</p>
 <p class="fine">녹취 결과는 아래에 시간 순서대로 표시됩니다.</p></section></div>
 <section class="panel"><span class="step">04 / REVIEW</span><h2>화자별 원본 대조</h2>
@@ -30,4 +35,4 @@
 <div class="times"><label>사건명 또는 사건번호 (선택)<input id="caseName"></label><label>검수자 (선택)<input id="reviewer"></label></div>
 <p>DOCX에는 전체 화자의 대화를 원본 시간순으로 수록합니다. 미검수 줄이 있으면 초안으로 표시합니다. 처리 기록에는 원본 해시, AI 후보, 수정·제외·검수 이력이 포함됩니다.</p>
 <button id="bundle" disabled>제출 자료 ZIP 저장</button> <button class="sub" id="word" disabled>녹취록 DOCX 저장</button> <button class="sub" id="log" disabled>처리 기록 JSON 저장</button> <button class="sub" id="save" disabled>TXT 저장</button><p class="fine">탭을 닫기 전에 내려받으세요.</p></section>
-<footer><span>Truth Sound · 브라우저판</span><a href="https://github.com/rei1237/truth-sound" rel="noreferrer">PC판 · 소스 코드 ↗</a></footer></main><script src="app.js?v=clarity3" type="module"></script></body></html>
+<footer><span>Truth Sound · 브라우저판</span><a href="https://github.com/rei1237/truth-sound" rel="noreferrer">PC판 · 소스 코드 ↗</a></footer></main><script src="app.js?v=full1" type="module"></script></body></html>

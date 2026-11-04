@@ -15,7 +15,7 @@ export async function report(source,rows,events,details){
     original:{filename:source.name,bytes:source.bytes,durationSeconds:source.samples.length/16000,sha256:source.hash},
     status:included.length && included.every(r=>r.reviewedAt&&r.text.trim())?'원본 대조 검수 완료':'검수 전 초안',
     processing:{transcription:'Xenova/whisper-base · 한국어 · 브라우저',modelRevision:'64da57285918e20ea79ea5c88eed7197933abaa8',
-      clock:'원본 시작 기준 초',sampleRate:16000,
+      clock:'원본 시작 기준 초',sampleRate:16000,fullEnhancement:source.full?.metadata??null,
       speakerEstimation:events.some(e=>e.action==='화자 추정 완료')?'WeSpeaker ResNet34-LM f0c48c298fd835726c27956a5d617bad7115627e · 구간별 음색 유사도 추정':null},
     rows:structuredClone(ordered),events:structuredClone(events)
   };
@@ -51,7 +51,7 @@ export async function wordReport(record){
     line('화자 표기',Array.from(new Set(included.map(effectiveSpeaker))).join(', ')||'없음'),
     p('녹취 내용',{heading:HeadingLevel.HEADING_1}));
   for(const r of included){
-    const origin=r.input==='clarified'?' · 발음 선명화 신호 인식':r.input==='amplified'?' · 확대 신호 인식':'';
+    const origin=r.input==='full-clarity'?' · 전체 보정본 인식':r.input==='clarified'?' · 발음 선명화 신호 인식':r.input==='amplified'?' · 확대 신호 인식':'';
     body.push(p(formatTime(r.start)+' – '+formatTime(r.end)+'   '+effectiveSpeaker(r)+'   · '+(r.reviewedAt?'검수 완료':'검수 전')+origin,{keepNext:true}),
       ...((r.text.trim()||'[판독 불가]').split(/\r?\n/).map(t=>p(t,{spacing:{after:140}}))));
   }

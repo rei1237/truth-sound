@@ -1,4 +1,5 @@
-import {bundleReport,download,effectiveSpeaker,formatTime,report,textReport,wordReport} from './report.js';
+import {bundleReport,download,effectiveSpeaker,formatTime,report,textReport,wordReport} from './report.js?v=full1';
+import {readPcm} from './full-audio.js';
 const $=id=>document.getElementById(id);
 const now=()=>new Date().toISOString();
 function el(tag,text=''){const node=document.createElement(tag);node.textContent=text;return node;}
@@ -75,7 +76,7 @@ export function createReview(getSource,getRange){
     const box=el('article');box.className='utterance';
     const head=el('div');head.className='rowhead';
     head.append(el('strong',formatTime(r.start)+' – '+formatTime(r.end)),button('▶ 원본 구간 듣기',()=>listen(r)));
-    const info=el('small',[r.input==='clarified'?'발음 선명화 후보':r.input==='amplified'?'작은 말소리 확대 후보':r.input==='manual'?'직접 작성':'AI 후보',
+    const info=el('small',[r.input==='full-clarity'?'전체 보정본 후보':r.input==='clarified'?'발음 선명화 후보':r.input==='amplified'?'작은 말소리 확대 후보':r.input==='manual'?'직접 작성':'AI 후보',
       r.suggestion?'자동 추정 '+r.suggestion:'',r.reviewedAt?'검수 완료':'검수 전',r.excluded?'문서 제외':''].filter(Boolean).join(' · '));
     const speaker=el('input');speaker.setAttribute('list','names');speaker.placeholder=r.suggestion||'화자 미상';speaker.value=r.speaker;
     const label=el('label','화자 이름 또는 번호');label.append(speaker);
@@ -96,16 +97,17 @@ export function createReview(getSource,getRange){
   }
   $('filter').onchange=paint;
   $('addLine').onclick=()=>{try{const [a,b]=getRange();add(a/16000,b/16000,'','manual');}catch(e){status.textContent=e.message;}};
-  $('estimate').onclick=()=>{
+  function cancelEstimate(){speakerWorker?.terminate();speakerWorker=null;updateButtons();}
+  async function estimate(done=()=>{}){
     const source=getSource();
-    const items=rows.filter(r=>!r.excluded).sort((a,b)=>a.start-b.start).map(r=>{
-      const center=(r.start+r.end)/2,a=Math.max(r.start,center-2.5),b=Math.min(r.end,center+2.5);
-      return {id:r.id,samples:source.samples.slice(Math.round(a*16000),Math.round(b*16000))};
-    });
-    if(!items.some(i=>i.samples.length>=24000)){status.textContent='화자 추정에는 1.5초 이상 발화가 필요합니다. 짧은 줄은 직접 지정하세요.';return;}
-    speakerWorker=new Worker(new URL('./speakers.js',import.meta.url),{type:'module'});
+    if(speakerWorker||!source)return;
+    const eligible=rows.filter(r=>!r.excluded&&!r.reviewedAt && r.end-r.start>=1.5 && !/^\[판독/.test(r.text)).sort((a,b)=>a.start-b.start);
+    function finish(message){cancelEstimate();status.textContent=message;paint();done(message);}
+    if(!eligible.length){finish('자동으로 비교할 발화가 없습니다. 짧거나 불명확한 줄은 화자 미상으로 남깁니다.');return;}
+    let job;
+    try{
+    job=speakerWorker=new Worker(new URL('./speakers.js',import.meta.url),{type:'module'});
     updateButtons();status.textContent='화자 모델을 준비하고 있습니다 (약 27MB).';
-    function finish(message){speakerWorker?.terminate();speakerWorker=null;status.textContent=message;paint();}
     speakerWorker.onerror=e=>finish('화자 추정 실패 · 직접 지정하거나 다시 시도하세요. '+e.message);
     speakerWorker.onmessage=({data})=>{
       if(data.progress)status.textContent='화자 비교 중 · '+data.progress;
@@ -113,11 +115,20 @@ export function createReview(getSource,getRange){
       if(data.results){
         const byId=new Map(data.results.map(x=>[x.id,x.label]));
         for(const row of rows)if(!row.reviewedAt && byId.has(row.id))row.suggestion=byId.get(row.id);
-        log('화자 추정 완료',{results:data.results});finish('화자 번호는 음색 추정입니다. 원본을 듣고 이름을 확인하세요.');
+        log('화자 추정 완료',{results:data.results,inputs:eligible.map(r=>({id:r.id,input:r.input==='full-clarity'?'full-clarity':'original'}))});finish('화자별 초안을 작성했습니다. 원본을 듣고 화자와 문구를 확인하세요.');
       }
     };
-    speakerWorker.postMessage(items,items.map(i=>i.samples.buffer));
-  };
+    const items=[];
+    for(const r of eligible){
+      const center=(r.start+r.end)/2,a=Math.round(Math.max(r.start,center-2.5)*16000),b=Math.round(Math.min(r.end,center+2.5)*16000);
+      const samples=r.input==='full-clarity'?await readPcm(source.full.blob,a,b):source.samples.slice(a,b);
+      if(speakerWorker!==job)return;
+      items.push({id:r.id,samples});
+    }
+    job.postMessage(items,items.map(i=>i.samples.buffer));
+    }catch(e){if(speakerWorker===job||!job)finish('화자 추정 실패 · '+e.message);}
+  }
+  $('estimate').onclick=()=>estimate();
   async function save(kind){
     const data=await report(getSource(),rows,events,{caseName:$('caseName').value.trim(),reviewer:$('reviewer').value.trim()});
     const prefix=data.original.filename+'-'+data.status;
@@ -130,7 +141,7 @@ export function createReview(getSource,getRange){
     }catch(e){status.textContent='파일을 생성하지 못했습니다. '+e.message;}
   }
   $('bundle').onclick=()=>save('bundle');$('word').onclick=()=>save('word');$('log').onclick=()=>save('log');$('save').onclick=()=>save('txt');
-  return {reset,add,log,hasRows:()=>!!rows.length,isEstimating:()=>!!speakerWorker,
+  return {reset,add,log,estimate,cancelEstimate,hasRows:()=>!!rows.length,isEstimating:()=>!!speakerWorker,
     setLocked(value){locked=value;updateButtons();},
     replace(){log('이전 녹취 대체',{previousRows:rows.map(r=>({...r}))});clearPlayback();rows=[];paint();}};
 }

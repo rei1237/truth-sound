@@ -1,8 +1,10 @@
-import {createReview} from './review.js';
+import {createReview} from './review.js?v=full1';
+import {renderFull,method} from './full-audio.js';
 import {clarify,liftForListening,wav} from './audio.js?v=clarity3';
 const $=id=>document.getElementById(id);
 const clock=t=>Math.floor(t/60).toString().padStart(2,'0')+':'+(t%60).toFixed(3).padStart(6,'0');
 let source=null, clipUrl='', worker=null, revision=0, offset=0;
+let fullJob=null,activeFullPlayer='original',recognizing=false;
 const review=createReview(()=>source,range);
 function waveform(samples) {
   const canvas=$('wave'), ctx=canvas.getContext('2d'), w=canvas.width, h=canvas.height;
@@ -20,7 +22,7 @@ function waveform(samples) {
   peaks.forEach((p,i)=>{const height=Math.max(1,p/(peak||1)*(h-8));ctx.fillRect(i,h/2-height/2,1,height);});
 }
 function busy(on){
-  $('asr').disabled=on||!source;$('rangeAsr').disabled=on||!source;$('stop').hidden=!on;
+  recognizing=on;$('asr').disabled=on||!source?.full;$('rangeAsr').disabled=on||!source;$('stop').hidden=!on;
   review.setLocked(on);
 }
 function halt(message){
@@ -32,12 +34,39 @@ function revokeClip(){
   if(clipUrl)URL.revokeObjectURL(clipUrl);clipUrl='';
 }
 let loading=false;
+function clearFull(){
+  fullJob?.abort();fullJob=null;
+  const player=$('enhanced');player.pause();player.removeAttribute('src');player.load();
+  if(source?.full)URL.revokeObjectURL(source.full.url);
+  $('fullDownload').removeAttribute('href');$('fullResult').hidden=true;$('retryFull').hidden=true;
+  $('fullStatus').textContent='녹음을 열면 자동 보정을 시작합니다.';activeFullPlayer='original';
+}
+async function prepareFull(){
+  const current=source;if(!current||current.full||fullJob)return;
+  const job=fullJob=new AbortController();$('retryFull').hidden=true;
+  const status=$('fullStatus');status.textContent='전체 녹음의 작은 말소리를 찾는 중입니다.';
+  try{
+    const blob=await renderFull(current.samples,job.signal,f=>{status.textContent='전체 음성 보정 중 · '+Math.round(100*f)+'%';});
+    const digest=await crypto.subtle.digest('SHA-256',await blob.arrayBuffer());
+    if(current!==source||job.signal.aborted)return;
+    const url=URL.createObjectURL(blob),metadata={method,format:'PCM16 WAV · 16000 Hz · mono',
+      samples:current.samples.length,sha256:Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('')};
+    current.full={url,blob,metadata};review.log('전체 음성 보정 완료',metadata);
+    $('enhanced').src=url;$('fullDownload').href=url;$('fullDownload').download=current.name+'-전체보정.wav';
+    $('fullResult').hidden=false;status.textContent='전체 보정 완료 · 원본과 길이가 같습니다.';
+    if(!recognizing)$('asrstatus').textContent='전체 보정본이 준비되었습니다. 화자별 녹취를 시작하세요.';
+    busy(recognizing);
+  }catch(e){
+    if(source===current&&!job.signal.aborted){status.textContent='전체 보정을 완료하지 못했습니다. '+e.message;$('retryFull').hidden=false;}
+  }finally{if(fullJob===job)fullJob=null;}
+}
+$('retryFull').onclick=prepareFull;
 async function openFile(file,example=false){
   if(!file||loading)return;
   if(review.hasRows()&&!confirm('이 녹음의 초안을 저장하셨나요? 새 파일을 열면 현재 초안이 지워집니다.'))return;
   loading=true;$('pick').disabled=$('demo').disabled=true;
   const seq=++revision;
-  halt();if(source)URL.revokeObjectURL(source.url);
+  halt();clearFull();if(source)URL.revokeObjectURL(source.url);
   source=null;review.reset();revokeClip();$('original').pause();$('original').removeAttribute('src');$('original').load();
   $('selection').disabled=true;busy(false);
   $('clipstatus').textContent='';$('filename').textContent='녹음 열기';$('endtime').textContent='--:--.---';
@@ -58,10 +87,10 @@ async function openFile(file,example=false){
     $('original').src=source.url;$('filename').textContent=file.name;
     $('endtime').textContent=clock(mix.duration);$('start').value=0;$('end').value=Math.min(10,mix.duration).toFixed(3);
     $('notice').textContent=example
-      ? '합성 예제입니다. 3.1초부터 작게 말하는 “지금 다시 확인해 주세요”를 구간 비교에서 들어보세요.'
+      ? '합성 예제입니다. 3.1초부터 작게 말하는 “지금 다시 확인해 주세요”를 원본과 보정본에서 비교해 보세요.'
       : '원본 파일을 열었습니다. 녹음과 초안은 이 탭에만 있습니다.';
-    $('asrstatus').textContent='녹취 범위를 선택하세요. 인식 결과는 검수 전 후보로 기록됩니다.';
-    $('selection').disabled=false;busy(false);waveform(source.samples);
+    $('asrstatus').textContent='전체 보정본이 준비되면 녹취를 시작할 수 있습니다.';
+    $('selection').disabled=false;busy(false);waveform(source.samples);void prepareFull();
   }catch(e){$('notice').textContent='파일을 열지 못했습니다. '+(e.message||'WAV 또는 MP3 파일로 다시 시도하세요.');}
   finally{loading=false;$('pick').disabled=$('demo').disabled=false;}
 }
@@ -111,8 +140,15 @@ $('render').onclick=()=>renderClip();
 $('mode').onchange=()=>renderClip(true);
 $('repeatClip').onchange=()=>{$('clip').loop=$('repeatClip').checked;};
 for(const id of ['start','end'])$(id).oninput=()=>{revokeClip();$('clipstatus').textContent='선택한 구간을 다시 재생하세요.';};
-$('original').onplay=()=>$('clip').pause();
-$('clip').onplay=()=>$('original').pause();
+for(const id of ['original','enhanced'])$(id).onplay=()=>{
+  activeFullPlayer=id;$(id==='original'?'enhanced':'original').pause();$('clip').pause();
+};
+$('clip').onplay=()=>{$('original').pause();$('enhanced').pause();};
+$('compareFull').onclick=async()=>{
+  const from=$(activeFullPlayer),to=$(activeFullPlayer==='original'?'enhanced':'original');
+  const pos=from.ended?0:from.currentTime;from.pause();to.currentTime=pos;
+  try{await to.play();}catch(e){$('fullStatus').textContent='재생을 시작하지 못했습니다. '+e.message;}
+};
 const rangeButton=document.createElement('button');rangeButton.id='rangeAsr';rangeButton.className='sub';
 rangeButton.textContent='선택 구간만 녹취';rangeButton.disabled=true;$('asr').after(rangeButton);
 function startAsr(selected){
@@ -122,14 +158,15 @@ function startAsr(selected){
     if(!selected&&review.hasRows()&&!confirm('현재 초안을 전체 녹취 결과로 바꿀까요?'))return;
     offset=bounds[0]/16000;
     const raw=source.samples.subarray(...bounds);
-    const mode=selected ? $('mode').value : 'original';
-    const input=mode==='clear'?'clarified':mode==='lift'?'amplified':'original';
+    if(!selected&&!source.full)return;
+    const mode=selected ? $('mode').value : 'full-clarity';
+    const input=mode==='clear'?'clarified':mode==='lift'?'amplified':mode;
     const samples=mode==='clear' ? clarify(raw,source.samples.subarray(Math.max(0,bounds[0]-8000),bounds[1]+8000))
-      : mode==='lift' ? liftForListening(raw) : raw.slice();
-    worker=new Worker(new URL('./asr.js',import.meta.url),{type:'module'});
+      : mode==='lift' ? liftForListening(raw) : selected?raw.slice():null;
+    worker=new Worker(new URL('./asr.js?v=full1',import.meta.url),{type:'module'});
     const pending=!selected&&review.hasRows()?[]:null;
     review.log('녹취 시작',{rangeSeconds:bounds.map(i=>i/16000),input,selected,
-      listeningProcessing:mode==='original'?null:'clarity-v3 · short-window level control, max +38 dB'});
+      listeningProcessing:!selected?source.full.metadata:mode==='original'?null:'clarity-v3 · short-window level control, max +38 dB'});
     busy(true);$('asrstatus').textContent='이 기기에서 모델을 준비합니다. 첫 실행은 시간이 걸릴 수 있습니다.';
     worker.onmessage=({data})=>{
       if(data.status)$('asrstatus').textContent=data.status;
@@ -144,12 +181,16 @@ function startAsr(selected){
         if(pending?.length){review.replace();for(const args of pending)review.add(...args);}
         review.log(selected?'구간 녹취 완료':'전체 녹취 완료');
       }
-      if(data.done)halt('녹취 초안을 작성했습니다. 원본을 들으며 수정한 뒤 저장하세요.');
+      if(data.done && selected)halt('구간 녹취 초안을 작성했습니다. 원본을 들으며 수정한 뒤 저장하세요.');
+      if(data.done && !selected){
+        worker.terminate();worker=null;$('asrstatus').textContent='전체 녹취 완료 · 보정본에서 화자를 비교합니다.';
+        void review.estimate(message=>halt('전체 녹취 완료 · '+message));
+      }
     };
     worker.onerror=e=>halt('AI 실행 오류 · '+(e.message||'최신 브라우저에서 다시 시도하세요.'));
-    worker.postMessage({samples},[samples.buffer]);
+    if(selected)worker.postMessage({samples},[samples.buffer]);else worker.postMessage({full:source.full.blob});
   }catch(e){halt(e.message);}
 }
 $('asr').onclick=()=>startAsr(false);rangeButton.onclick=()=>startAsr(true);
-$('stop').onclick=()=>{review.log('녹취 중지');halt('녹취를 중지했습니다. 작성된 줄은 남아 있습니다.');};
+$('stop').onclick=()=>{review.cancelEstimate();review.log('녹취 중지');halt('녹취를 중지했습니다. 작성된 줄은 남아 있습니다.');};
 waveform(null);
