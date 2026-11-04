@@ -1,4 +1,5 @@
 // 16 kHz PCM -> Kaldi-style 80-bin, mean-normalized log mel filterbank.
+import {modelBase} from './model-base.js';
 import FFT from './vendor/fft.js';
 import './vendor/ort.min.js';
 const ort=globalThis.ort;
@@ -42,7 +43,7 @@ self.onmessage=async({data})=>{
   try{
     ort.env.wasm.numThreads=1;
     ort.env.wasm.wasmPaths=new URL('./vendor/',import.meta.url).href;
-    session=await ort.InferenceSession.create(new URL('./models/wespeaker/resnet34.onnx',import.meta.url).href,{executionProviders:['wasm']});
+    session=await ort.InferenceSession.create(new URL('wespeaker/resnet34.onnx',modelBase).href,{executionProviders:['wasm']});
     const centers=[],results=[];
     for(const [i,{id,samples}] of data.entries()){
       let label='';

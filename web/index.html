@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; media-src 'self' blob:; worker-src 'self'; object-src 'none'; form-action 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https://raw.githubusercontent.com/rei1237/truth-sound/b744f6dcd74d6b0bc9c4f2f3c23da4f847f36533/web/models/; media-src 'self' blob:; worker-src 'self'; object-src 'none'; form-action 'none'; base-uri 'none'">
 <meta name="description" content="내 기기에서 녹음을 열고 작은 목소리를 비교해 들으며 한국어 녹취 초안을 작성하세요.">
 <title>Truth Sound · 녹음 작업실</title>
 <link rel="icon" href="mark.svg"><link rel="stylesheet" href="style.css">
@@ -30,4 +30,4 @@
 <div class="times"><label>사건명 또는 사건번호 (선택)<input id="caseName"></label><label>검수자 (선택)<input id="reviewer"></label></div>
 <p>DOCX에는 전체 화자의 대화를 원본 시간순으로 수록합니다. 미검수 줄이 있으면 초안으로 표시합니다. 처리 기록에는 원본 해시, AI 후보, 수정·제외·검수 이력이 포함됩니다.</p>
 <button id="bundle" disabled>제출 자료 ZIP 저장</button> <button class="sub" id="word" disabled>녹취록 DOCX 저장</button> <button class="sub" id="log" disabled>처리 기록 JSON 저장</button> <button class="sub" id="save" disabled>TXT 저장</button><p class="fine">탭을 닫기 전에 내려받으세요.</p></section>
-<footer><span>Truth Sound · 브라우저판</span><a href="https://github.com/rei1237/truth-sound" rel="noreferrer">PC판 · 소스 코드 ↗</a></footer></main><script src="app.js" type="module"></script></body></html>
+<footer><span>Truth Sound · 브라우저판</span><a href="https://github.com/rei1237/truth-sound" rel="noreferrer">PC판 · 소스 코드 ↗</a></footer></main><script src="app.js?v=review-2" type="module"></script></body></html>

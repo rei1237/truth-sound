@@ -1,0 +1,34 @@
+name: Publish browser workspace
+on:
+  push:
+    branches: [main]
+    paths: ['web/**', '.github/workflows/web-pages.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: truth-sound-pages
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare public files without duplicating model downloads
+        run: |
+          mkdir site
+          rsync -a --exclude='*.onnx' web/ site/
+          test -f site/index.html && test -f site/vendor/ort-wasm-simd.wasm
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
+        with:
+          timeout: 1800000

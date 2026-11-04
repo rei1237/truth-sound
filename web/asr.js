@@ -1,7 +1,8 @@
 import { env, pipeline } from './vendor/transformers.min.js';
+import { modelBase } from './model-base.js';
 import { lift } from './audio.js';
 env.allowRemoteModels=false;
-env.localModelPath=new URL('./models/',import.meta.url).href;
+env.localModelPath=modelBase;
 env.backends.onnx.wasm.wasmPaths=new URL('./vendor/',import.meta.url).href;
 env.backends.onnx.wasm.numThreads=1;
 let model;
