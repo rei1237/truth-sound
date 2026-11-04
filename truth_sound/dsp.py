@@ -2,7 +2,7 @@
 from math import gcd
 
 import numpy as np
-from scipy.signal import butter, resample_poly, sosfilt
+from scipy.signal import butter, istft, resample_poly, sosfilt, stft
 
 FRAME_SEC = 0.02
 TARGET_DB = -20.0
@@ -109,6 +109,34 @@ def lift_quiet_clip(x: np.ndarray) -> np.ndarray:
     gain = min(10 ** (MAX_GAIN_DB / 20), PEAK_LIMIT / peak,
                max(1.0, 10 ** ((TARGET_DB - rms_db(x)) / 20)))
     return (x * gain).astype(np.float32)
+
+
+def clarify_quiet_clip(x: np.ndarray, sr: int, context: np.ndarray) -> np.ndarray:
+    """청취용 선명화. 주변 소리는 잡음 추정에만 쓰고 재생 신호는 선택 구간에서만 얻는다."""
+    if not np.any(x):
+        return x.copy()
+    window = max(8, 2 * round(0.016 * sr))
+    params = {"fs": sr, "nperseg": window, "noverlap": window // 2}
+
+    def spectrum(y):
+        return stft(np.pad(y, (0, max(0, window - len(y)))), **params)
+
+    freq, _, signal = spectrum(x)
+    # 일정한 바닥 소음은 줄이되 짧은 자음이 통째로 사라지지 않도록 감쇠 폭을 제한한다.
+    _, _, background = spectrum(context)
+    power = np.abs(background) ** 2
+    active = np.sum(power, axis=0) > 1e-12
+    gain = np.ones_like(signal.real)
+    if np.count_nonzero(active) >= 6:
+        floor = np.percentile(power[:, active], 25, axis=1, keepdims=True)
+        gain = np.sqrt(np.clip(1 - 1.4 * floor / np.maximum(np.abs(signal) ** 2, 1e-16),
+                               0.13, 1.0))
+
+    # 저음 진동을 완화하고 자음 단서가 있는 대역을 완만하게 강조한다.
+    eq_db = np.interp(freq, [0, 65, 180, 800, 1800, 3500, 6000, 8000],
+                     [-12, -10, 0, 0, 2.5, 2.5, 0, -2])
+    _, restored = istft(signal * gain * (10 ** (eq_db / 20))[:, None], **params)
+    return lift_quiet_clip(restored[:len(x)].astype(np.float32))
 
 
 def enhance_speech(x: np.ndarray, sr: int) -> np.ndarray:

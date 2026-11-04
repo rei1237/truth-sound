@@ -100,13 +100,30 @@ export function createAnalysisPanel(root, { api, session, focus = null, onEntry 
   // ---------- 수치 ----------
   const stat = (label, ...value) => h('div', { class: 'ana-row' }, h('dt', {}, label), h('dd', {}, ...value));
 
+  let listenMode = 'clarify';
+  function clipPlayer() {
+    const player = h('audio', { controls: true, preload: 'none', 'aria-label': '선택 구간 듣기' });
+    const update = () => {
+      const query = new URLSearchParams({ track: track(), start: sel.start, end: sel.end });
+      if (listenMode !== 'plain') query.set(listenMode, 'true');
+      player.src = `${base}/audio/clip?${query}`;
+    };
+    const mode = h('select', { 'aria-label': '청취 방식', onchange: (event) => {
+      listenMode = event.target.value;
+      update();
+    } }, h('option', { value: 'plain' }, '보정 전'),
+    h('option', { value: 'boost' }, '작은 소리 확대'),
+    h('option', { value: 'clarify' }, '잡음 줄이고 말소리 듣기'));
+    mode.value = listenMode;
+    update();
+    return [h('label', {}, '청취 보조 ', mode), player];
+  }
+
   function paintHead() {
     head.replaceChildren(
       h('strong', {}, analysisSource(row).name), ' · ',
       h('span', { class: 'num' }, `${fmt(sel.start)} ~ ${fmt(sel.end)}`),
-      span() <= 30 ? h('label', {}, '작은 소리 확대 듣기 (청취 보조용)',
-        h('audio', { controls: true, preload: 'none',
-          src: `${base}/audio/clip?${new URLSearchParams({ track: track(), start: sel.start, end: sel.end, boost: true })}` })) : null);
+      ...(span() <= 30 ? clipPlayer() : [h('span', { class: 'hint' }, '청취 보조는 30초 이하 구간을 선택하세요.')]));
   }
 
   function pitchRows(d) {

@@ -406,6 +406,37 @@ def test_boost_quiet_clip_preserves_source_and_duration(tmp_path):
     assert path.read_bytes() == original
 
 
+def test_clarify_reduces_steady_rumble_around_short_quiet_voice(tmp_path):
+    import io
+    sr = 16000
+    t = np.arange(sr) / sr
+    x = 0.002 * np.sin(2 * np.pi * 60 * t)
+    x[sr//2:sr//2+1600] += 0.001 * np.sin(2 * np.pi * 1900 * t[:1600])
+    path = tmp_path / "quiet.wav"
+    sf.write(path, x, sr)
+    original = path.read_bytes()
+    def read(**mode):
+        return sf.read(io.BytesIO(analysis.clip_wav(path, 0.50, 0.60, **mode)))[0]
+    def ratio(y):
+        freq = np.fft.rfftfreq(len(y), 1/sr)
+        spectrum = np.abs(np.fft.rfft(y * np.hanning(len(y))))
+        return np.max(spectrum[(freq > 1800) & (freq < 2000)]) / np.max(spectrum[freq < 150])
+    enhanced = read(clarify=True)
+    assert len(enhanced) == 1600 and np.max(np.abs(enhanced)) <= 0.981
+    assert ratio(enhanced) > 2 * ratio(read(boost=True))
+    assert path.read_bytes() == original
+
+
+def test_clarify_silent_selection_does_not_import_neighbouring_voice(tmp_path):
+    import io
+    x = np.ones(16000, dtype=np.float32) * 0.1
+    x[8000:8160] = 0
+    path = tmp_path / "silent.wav"
+    sf.write(path, x, 16000)
+    y, sr = sf.read(io.BytesIO(analysis.clip_wav(path, 0.50, 0.51, clarify=True)))
+    assert sr == 16000 and len(y) == 160 and not np.any(y)
+
+
 def test_clip_wav_length_and_rate(tmp_path):
     import io
     p = write_sine(tmp_path / "a.wav", seconds=2.0, sr=22050, channels=2)

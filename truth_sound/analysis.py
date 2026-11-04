@@ -572,14 +572,19 @@ def analyze(path: Path, start: float, end: float, speech: list[list[float]] | No
             "speech_percent": None if speech is None else _speech_percent(speech, start, end)}
 
 
-def clip_wav(path: Path, start: float, end: float, boost: bool = False) -> bytes:
+def clip_wav(path: Path, start: float, end: float, boost: bool = False, clarify: bool = False) -> bytes:
     """[start, end)초를 원래 샘플레이트의 PCM16 모노 WAV로. 조각마다 써 긴 구간도 메모리를 적게 쓴다."""
     info, start, end = _window(path, start, end, CLIP_MAX_SPAN, "10분 이하로 골라 주세요.")
     buf = io.BytesIO()
-    if boost:
+    if boost or clarify:
         check_window(info["duration"], start, end, max_span=30.0)
         x, sr = read_range(path, start, end)
-        sf.write(buf, dsp.lift_quiet_clip(x), sr, format="WAV", subtype="PCM_16")
+        if clarify:
+            context, _ = read_range(path, max(0, start - 0.5), min(info["duration"], end + 0.5))
+            audio = dsp.clarify_quiet_clip(x, sr, context)
+        else:
+            audio = dsp.lift_quiet_clip(x)
+        sf.write(buf, audio, sr, format="WAV", subtype="PCM_16")
         return buf.getvalue()
     with sf.SoundFile(buf, "w", samplerate=info["sr"], channels=1, format="WAV", subtype="PCM_16") as out:
         for x in _blocks(path, start, end):

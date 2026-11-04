@@ -344,9 +344,9 @@ def create_app(pipeline_fn=run_pipeline, encoder_factory=None, encoder_idle_sec:
 
     @app.get("/api/cases/{case_id}/audio/clip")
     def get_clip(case_id: str, track: str = "orig", start: float | None = None, end: float | None = None,
-                 boost: bool = False):
+                 boost: bool = False, clarify: bool = False):
         path, _, _, start, end = _analysis_target(case_id, track, start, end)
-        return Response(analysis.clip_wav(path, start, end, boost), media_type="audio/wav")
+        return Response(analysis.clip_wav(path, start, end, boost, clarify), media_type="audio/wav")
 
     @app.get("/api/cases/{case_id}/audio/listen")
     def listen(case_id: str):
