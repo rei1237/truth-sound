@@ -1,0 +1,66 @@
+body{min-width:0;min-height:0}
+#app{height:100dvh;min-height:0}
+fieldset{margin:0;padding:0;border:0;min-width:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.local,.sub,.tracks-hint,.panes p,#notice{color:#adb4c0}
+#filename{font-weight:600}
+.empty .file,.empty #exportTab{display:none}
+#dropzone{inset:24px 0 42px}
+#notice{position:absolute;bottom:0;margin:0;padding:8px 14px;width:100%;background:var(--panel);border-top:1px solid var(--line);overflow-wrap:anywhere}
+#workarea{padding-bottom:34px;overflow:hidden}
+#toolbar{flex-wrap:wrap}
+#toolbar .speed{display:flex}
+#ticks{display:flex;flex:1;justify-content:space-between;align-items:center;padding:0 4px;font:10px var(--mono);color:var(--muted)}
+.gutter{flex:0 0 150px;border-right:1px solid var(--line);padding:4px 9px;color:var(--muted)}
+.empty #ruler{opacity:.45}
+#tracks{--cursor:0%;--left:0%;--width:0%}
+.row{min-height:112px}
+.row .wave{min-width:0;cursor:crosshair;touch-action:none;overflow:hidden}
+.wave canvas{display:block;width:100%;height:100%;position:absolute;inset:0}
+.row .ctl .choose{align-self:flex-start;padding:2px 7px;margin-top:6px}
+.choose[aria-pressed=true]{color:var(--accent);border-color:var(--accent)}
+.row[data-track=enhanced] .name i{background:#41d095}
+.selectionBand,.playhead{position:absolute;top:0;bottom:0;pointer-events:none}
+.selectionBand{left:var(--left);width:var(--width);background:var(--sel);border-inline:1px solid var(--sel-edge)}
+.playhead{left:var(--cursor);border-left:1px solid var(--accent)}
+.transcriptLane{min-height:42px}
+.transcriptLane .name i{background:var(--accent)}
+#lane{position:relative;background:var(--trk);overflow:hidden}
+#lane button{position:absolute;top:6px;height:27px;padding:1px 4px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--accent);border-radius:3px}
+.tracks-hint{margin:0;padding:9px 12px}
+.tracks-hint:empty{display:none}
+.inline{margin:8px 12px}
+.panes{overflow-wrap:anywhere}
+.panes h2{font-size:15px;margin:12px 0 5px}
+.panes p{line-height:1.5}
+.panes label{display:block;margin:10px 0}
+.panes input:not([type=checkbox]),select,textarea,#bounds input{background:var(--trk);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:6px;font:inherit}
+.panes input:not([type=checkbox]),select,textarea,audio{display:block;width:100%;margin-top:5px}
+audio{height:34px}audio:not([controls]){display:none}
+textarea{resize:vertical;line-height:1.55}
+.panes button{margin:2px 0}
+.panes summary{cursor:pointer;color:var(--accent);padding:9px 0}
+.panes a{color:var(--accent);text-decoration:underline}
+.utterance{border-top:1px solid var(--line);padding:10px 0}
+.rowhead,.rowactions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.rowhead strong{flex-basis:100%;font:12px var(--mono);color:var(--accent)}
+.utterance small{color:#adb4c0}
+.rowactions label{margin:4px 0}
+.candidatePair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:8px 0}
+.candidatePair>div{min-width:0;border-block:1px solid var(--line);padding:7px 0}
+.candidatePair strong{color:var(--accent)}.candidatePair p{color:var(--ink);margin:4px 0}
+#bounds{display:flex;gap:12px}#bounds input{margin-left:4px;width:8ch;padding:2px 4px;font-family:var(--mono)}
+#statusbar{flex-wrap:wrap;gap:10px}
+.dragging #workarea{outline:2px dashed var(--accent);outline-offset:-4px}
+@media(max-width:760px){
+  #app{height:auto;min-height:100dvh}body{overflow:auto}
+  #topbar,#toolbar{gap:6px;padding:6px 8px}
+  #topbar .file{flex:1}.local{display:none}
+  #stage,body.empty #stage{display:flex;flex-direction:column}
+  #splitter{display:none}#workarea{min-height:260px}
+  body.empty #workarea{min-height:calc(100dvh - 180px)}
+  #panel{border-left:0;border-top:1px solid var(--line)}.panes{overflow:visible}
+  .gutter{flex-basis:90px}.row{grid-template-columns:90px 1fr;min-height:80px}.transcriptLane{min-height:38px}
+  #toolbar .sp{display:none}#statusbar{font-size:11px}.clock{font-size:16px}#ticks span:nth-child(even){display:none}
+  .tracks-hint{padding:5px 8px}.tabs{margin:6px 10px}
+}

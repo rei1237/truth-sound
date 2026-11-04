@@ -41,7 +41,7 @@ export function createReview(getSource,getRange,reviewAudio){
     try{
       const blob=await reviewAudio(r);if(token!==playRevision)return;
       previewUrl=URL.createObjectURL(blob);preview=new Audio(previewUrl);preview.onended=stopPreview;
-      await preview.play();log('보정 구간 재생',{id:r.id,start:r.start,end:r.end});
+      preview.playbackRate=original.playbackRate;await preview.play();log('보정 구간 재생',{id:r.id,start:r.start,end:r.end});
     }catch{if(token===playRevision){stopPreview();status.textContent='보정 구간을 재생할 수 없습니다.';}}
   }
   function updateButtons(){
@@ -52,7 +52,7 @@ export function createReview(getSource,getRange,reviewAudio){
   }
   function reset(){
     clearPlayback();speakerWorker?.terminate();speakerWorker=null;rows=[];events=[];nextId=1;
-    $('caseName').value=$('reviewer').value='';$('filter').value='';status.textContent='';paint();
+    $('caseName').value=$('reviewer').value='';$('filter').value='';status.textContent=$('exportStatus').textContent='';paint();
   }
   function makeRow(start,end,text,input){
     return {id:'r'+nextId++,start,end,input,aiText:input==='manual'?null:text,text,speaker:'',suggestion:'',
@@ -94,7 +94,7 @@ export function createReview(getSource,getRange,reviewAudio){
     $('reviewRows').replaceChildren(...cards);
   }
   function card(r){
-    const box=el('article');box.className='utterance';
+    const box=el('article');box.className='utterance';box.dataset.start=r.start;box.dataset.end=r.end;
     const head=el('div');head.className='rowhead';
     head.append(el('strong',formatTime(r.start)+' – '+formatTime(r.end)),button('▶ 원본 구간 듣기',()=>listen(r)));
     if(r.variant)head.append(button('보정 구간 듣기',()=>listenEnhanced(r)));
@@ -177,8 +177,8 @@ export function createReview(getSource,getRange,reviewAudio){
       if(kind==='word')download(await wordReport(data),prefix+'.docx');
       if(kind==='log')download(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),prefix+'-처리기록.json');
       if(kind==='txt')download(new Blob(['\ufeff',textReport(data)],{type:'text/plain;charset=utf-8'}),prefix+'.txt');
-      status.textContent=data.status+' · 파일을 생성했습니다.';
-    }catch(e){status.textContent='파일을 생성하지 못했습니다. '+e.message;}
+      status.textContent=$('exportStatus').textContent=data.status+' · 파일을 생성했습니다.';
+    }catch(e){status.textContent=$('exportStatus').textContent='파일을 생성하지 못했습니다. '+e.message;}
   }
   $('bundle').onclick=()=>save('bundle');$('word').onclick=()=>save('word');$('log').onclick=()=>save('log');$('save').onclick=()=>save('txt');
   return {reset,add,log,estimate,cancelEstimate,hasRows:()=>!!rows.length,isEstimating:()=>!!speakerWorker,

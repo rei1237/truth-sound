@@ -1,4 +1,5 @@
-import {createReview} from './review.js?v=compare1';
+import {createReview} from './review.js?v=studio1';
+import {createEditor,drawPeaks,peaksFrom} from './editor.js';
 import {renderFull,method,readPcm} from './full-audio.js';
 import {clarify,liftForListening,wav} from './audio.js?v=clarity3';
 const $=id=>document.getElementById(id);
@@ -6,6 +7,7 @@ const clock=t=>Math.floor(t/60).toString().padStart(2,'0')+':'+(t%60).toFixed(3)
 let source=null, clipUrl='', worker=null, revision=0, offset=0;
 let fullJob=null,activeFullPlayer='original',recognizing=false;
 const review=createReview(()=>source,range,reviewAudio);
+const editor=createEditor(()=>source,openFile,id=>{activeFullPlayer=id;});
 function selectedAudio(current,a,b,mode){
   const raw=current.samples.subarray(a,b);
   return mode==='lift'?liftForListening(raw):clarify(raw,current.samples.subarray(Math.max(0,a-8000),b+8000));
@@ -17,19 +19,8 @@ async function reviewAudio(row){
   return wav(selectedAudio(source,from,to,mode).subarray(a-from,b-from));
 }
 function waveform(samples) {
-  const canvas=$('wave'), ctx=canvas.getContext('2d'), w=canvas.width, h=canvas.height;
-  ctx.clearRect(0,0,w,h);ctx.strokeStyle='#2f3642';ctx.beginPath();
-  for(let i=0;i<=12;i++){ctx.moveTo(i*w/12,0);ctx.lineTo(i*w/12,h);}
-  ctx.moveTo(0,h/2);ctx.lineTo(w,h/2);ctx.stroke();
-  if(!samples)return;
-  const step=Math.max(1,Math.ceil(samples.length/w)), peaks=[];
-  let peak=0;
-  for(let a=0;a<samples.length;a+=step){
-    let max=0;for(let j=a;j<Math.min(a+step,samples.length);j++)max=Math.max(max,Math.abs(samples[j]));
-    peaks.push(max);peak=Math.max(peak,max);
-  }
-  ctx.fillStyle='#d9b777';
-  peaks.forEach((p,i)=>{const height=Math.max(1,p/(peak||1)*(h-8));ctx.fillRect(i,h/2-height/2,1,height);});
+  const canvas=$('wave');
+  drawPeaks(canvas,samples?peaksFrom(samples,canvas.width):[],'#aeb6c4');
 }
 function busy(on){
   recognizing=on;$('asr').disabled=on||!source?.full;$('rangeAsr').disabled=on||!source;$('stop').hidden=!on;
@@ -64,6 +55,7 @@ async function prepareFull(){
     current.full={url,blob,metadata};review.log('전체 음성 보정 완료',metadata);
     $('enhanced').src=url;$('fullDownload').href=url;$('fullDownload').download=current.name+'-전체보정.wav';
     $('fullResult').hidden=false;status.textContent='전체 보정 완료 · 원본과 길이가 같습니다.';
+    void editor.corrected(current).catch(()=>{if(source===current)status.textContent+=' 보정본 파형을 표시하지 못했습니다.';});
     if(!recognizing)$('asrstatus').textContent='전체 보정본이 준비되었습니다. 화자별 녹취를 시작하세요.';
     busy(recognizing);
   }catch(e){
@@ -77,7 +69,7 @@ async function openFile(file,example=false){
   loading=true;$('pick').disabled=$('demo').disabled=true;
   const seq=++revision;
   halt();clearFull();if(source)URL.revokeObjectURL(source.url);
-  source=null;review.reset();revokeClip();$('original').pause();$('original').removeAttribute('src');$('original').load();
+  source=null;editor.loaded(null);review.reset();revokeClip();$('original').pause();$('original').removeAttribute('src');$('original').load();
   $('selection').disabled=true;busy(false);
   $('clipstatus').textContent='';$('filename').textContent='녹음 열기';$('endtime').textContent='--:--.---';
   waveform(null);$('notice').textContent='녹음을 기기에서 읽는 중입니다.';$('asrstatus').textContent='';
@@ -100,7 +92,7 @@ async function openFile(file,example=false){
       ? '합성 예제입니다. 3.1초부터 작게 말하는 “지금 다시 확인해 주세요”를 원본과 보정본에서 비교해 보세요.'
       : '원본 파일을 열었습니다. 녹음과 초안은 이 탭에만 있습니다.';
     $('asrstatus').textContent='전체 보정본이 준비되면 녹취를 시작할 수 있습니다.';
-    $('selection').disabled=false;busy(false);waveform(source.samples);void prepareFull();
+    $('selection').disabled=false;busy(false);editor.loaded(source);waveform(source.samples);void prepareFull();
   }catch(e){$('notice').textContent='파일을 열지 못했습니다. '+(e.message||'WAV 또는 MP3 파일로 다시 시도하세요.');}
   finally{loading=false;$('pick').disabled=$('demo').disabled=false;}
 }
@@ -119,6 +111,7 @@ $('demo').onclick=async ()=>{
 $('here').onclick=()=>{
   const d=source.samples.length/16000,a=Math.max(0,Math.min($('original').currentTime,d-0.001));
   $('start').value=a.toFixed(3);$('end').value=Math.min(d,a+10).toFixed(3);
+  editor.refreshSelection();
   revokeClip();$('clipstatus').textContent='선택한 구간을 재생하세요.';
 };
 let clipBounds='';
@@ -177,7 +170,7 @@ function startAsr(selected){
     const pending=!selected&&review.hasRows()?[]:null;
     review.log('녹취 시작',{rangeSeconds:bounds.map(i=>i/16000),input,selected,
       sources:['original',mode],variant,listeningProcessing:!selected?source.full.metadata:'clarity-v3 · short-window level control, max +38 dB'});
-    busy(true);$('asrstatus').textContent='이 기기에서 모델을 준비합니다. 첫 실행은 시간이 걸릴 수 있습니다.';
+    busy(true);editor.tab('transcript');$('asrstatus').textContent='이 기기에서 모델을 준비합니다. 첫 실행은 시간이 걸릴 수 있습니다.';
     worker.onmessage=({data})=>{
       if(data.readOriginal){
         const originalPacket=source.samples.slice(...data.readOriginal);
@@ -211,4 +204,4 @@ function startAsr(selected){
 }
 $('asr').onclick=()=>startAsr(false);rangeButton.onclick=()=>startAsr(true);
 $('stop').onclick=()=>{review.cancelEstimate();review.log('녹취 중지');halt('녹취를 중지했습니다. 작성된 줄은 남아 있습니다.');};
-waveform(null);
+editor.loaded(null);waveform(null);
