@@ -96,15 +96,20 @@ function startAsr(selected){
     let bounds=selected?range():[0,source.samples.length];
     if(!selected&&$('draft').value.trim()&&!confirm('현재 초안을 전체 녹취 결과로 바꿀까요?'))return;
     offset=bounds[0]/16000;
-    const samples=source.samples.slice(...bounds);
+    const raw=source.samples.subarray(...bounds);
+    const useClear=selected && $('mode').value==='clear';
+    const samples=useClear ? clarify(raw,source.samples.subarray(Math.max(0,bounds[0]-8000),bounds[1]+8000)) : raw.slice();
     worker=new Worker(new URL('./asr.js',import.meta.url),{type:'module'});
-    if(!selected)$('draft').value='';
+    let firstLine=true;
     busy(true);$('asrstatus').textContent='이 기기에서 모델을 준비합니다. 첫 실행은 시간이 걸릴 수 있습니다.';
     worker.onmessage=({data})=>{
       if(data.status)$('asrstatus').textContent=data.status;
       if(data.line){
         const {start,end,text}=data.line;
-        $('draft').value+='['+clock(start+offset)+' – '+clock(end+offset)+'] [검수 전] '+text+'\n';
+        if(firstLine&&!selected)$('draft').value='';
+        firstLine=false;
+        const mark=useClear?'[청취 보정 신호 · 검수 전]':'[검수 전]';
+        $('draft').value+='['+clock(start+offset)+' – '+clock(end+offset)+'] '+mark+' '+text+'\n';
       }
       if(data.error)halt('녹취를 완료하지 못했습니다. '+data.error+' · 작성된 줄은 남아 있습니다.');
       if(data.done)halt('녹취 초안을 작성했습니다. 원본을 들으며 수정한 뒤 저장하세요.');
