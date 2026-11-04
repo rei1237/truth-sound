@@ -3,6 +3,11 @@ export const formatTime=t=>{
   return [Math.floor(s/3600),Math.floor(s/60)%60,s%60].map(v=>String(v).padStart(2,'0')).join(':')+'.'+String(ms%1000).padStart(3,'0');
 };
 export const effectiveSpeaker=r=>r.speaker||r.suggestion||'화자 미상';
+function transcriptText(row){
+  if(row.text.trim())return row.text.trim();
+  if(row.candidates?.different && !row.splitComparison)return '[후보 불일치 · 검수 필요]\n원본: '+(row.candidates.original||'[인식 문구 없음]')+'\n보정본: '+(row.candidates.enhanced||'[인식 문구 없음]');
+  return '[판독 불가]';
+}
 export function download(blob,name){
   const url=URL.createObjectURL(blob),link=document.createElement('a');
   link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -28,7 +33,7 @@ export async function report(source,rows,events,details){
 export function textReport(record){
   const rows=record.rows.filter(r=>!r.excluded);
   return ['Truth Sound 녹취록 · '+record.status,record.original.filename,'SHA-256 '+record.original.sha256,'',
-    ...rows.map(r=>'['+formatTime(r.start)+' – '+formatTime(r.end)+'] '+effectiveSpeaker(r)+' · '+(r.reviewedAt?'검수 완료':'검수 전')+' · '+(r.text||'[판독 불가]'))].join('\r\n');
+    ...rows.map(r=>'['+formatTime(r.start)+' – '+formatTime(r.end)+'] '+effectiveSpeaker(r)+' · '+(r.reviewedAt?'검수 완료':'검수 전')+' · '+transcriptText(r))].join('\r\n');
 }
 export async function bundleReport(record){
   const {zipSync,strToU8}=await import('./vendor/fflate.mjs');
@@ -51,9 +56,9 @@ export async function wordReport(record){
     line('화자 표기',Array.from(new Set(included.map(effectiveSpeaker))).join(', ')||'없음'),
     p('녹취 내용',{heading:HeadingLevel.HEADING_1}));
   for(const r of included){
-    const origin=r.input==='full-clarity'?' · 전체 보정본 인식':r.input==='clarified'?' · 발음 선명화 신호 인식':r.input==='amplified'?' · 확대 신호 인식':'';
+    const origin=r.input==='dual'?' · 원본·보정본 대조':r.input==='full-clarity'?' · 전체 보정본 인식':r.input==='clarified'?' · 발음 선명화 신호 인식':r.input==='amplified'?' · 확대 신호 인식':'';
     body.push(p(formatTime(r.start)+' – '+formatTime(r.end)+'   '+effectiveSpeaker(r)+'   · '+(r.reviewedAt?'검수 완료':'검수 전')+origin,{keepNext:true}),
-      ...((r.text.trim()||'[판독 불가]').split(/\r?\n/).map(t=>p(t,{spacing:{after:140}}))));
+      ...(transcriptText(r).split(/\r?\n/).map(t=>p(t,{spacing:{after:140}}))));
   }
   if(!included.length)body.push(p('[수록된 발화 없음]'));
   body.push(p('작성 기준',{heading:HeadingLevel.HEADING_1}),p('시각은 원본 녹음의 시작을 기준으로 합니다. 화자 이름은 사용자의 기재 또는 음색에 따른 추정입니다. 확실히 식별하기 어려운 내용은 [판독 불가]로 표시할 수 있습니다.'),

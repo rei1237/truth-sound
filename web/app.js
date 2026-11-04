@@ -1,11 +1,21 @@
-import {createReview} from './review.js?v=full1';
-import {renderFull,method} from './full-audio.js';
+import {createReview} from './review.js?v=compare1';
+import {renderFull,method,readPcm} from './full-audio.js';
 import {clarify,liftForListening,wav} from './audio.js?v=clarity3';
 const $=id=>document.getElementById(id);
 const clock=t=>Math.floor(t/60).toString().padStart(2,'0')+':'+(t%60).toFixed(3).padStart(6,'0');
 let source=null, clipUrl='', worker=null, revision=0, offset=0;
 let fullJob=null,activeFullPlayer='original',recognizing=false;
-const review=createReview(()=>source,range);
+const review=createReview(()=>source,range,reviewAudio);
+function selectedAudio(current,a,b,mode){
+  const raw=current.samples.subarray(a,b);
+  return mode==='lift'?liftForListening(raw):clarify(raw,current.samples.subarray(Math.max(0,a-8000),b+8000));
+}
+async function reviewAudio(row){
+  const a=Math.round(row.start*16000),b=Math.round(row.end*16000);
+  if(row.variant.mode==='full')return wav(await readPcm(source.full.blob,a,b));
+  const {from,to,mode}=row.variant;
+  return wav(selectedAudio(source,from,to,mode).subarray(a-from,b-from));
+}
 function waveform(samples) {
   const canvas=$('wave'), ctx=canvas.getContext('2d'), w=canvas.width, h=canvas.height;
   ctx.clearRect(0,0,w,h);ctx.strokeStyle='#2f3642';ctx.beginPath();
@@ -38,7 +48,7 @@ function clearFull(){
   fullJob?.abort();fullJob=null;
   const player=$('enhanced');player.pause();player.removeAttribute('src');player.load();
   if(source?.full)URL.revokeObjectURL(source.full.url);
-  $('fullDownload').removeAttribute('href');$('fullResult').hidden=true;$('retryFull').hidden=true;
+  $('fullDownload').removeAttribute('href');$('fullResult').open=false;$('fullResult').hidden=true;$('retryFull').hidden=true;
   $('fullStatus').textContent='녹음을 열면 자동 보정을 시작합니다.';activeFullPlayer='original';
 }
 async function prepareFull(){
@@ -159,20 +169,27 @@ function startAsr(selected){
     offset=bounds[0]/16000;
     const raw=source.samples.subarray(...bounds);
     if(!selected&&!source.full)return;
-    const mode=selected ? $('mode').value : 'full-clarity';
-    const input=mode==='clear'?'clarified':mode==='lift'?'amplified':mode;
-    const samples=mode==='clear' ? clarify(raw,source.samples.subarray(Math.max(0,bounds[0]-8000),bounds[1]+8000))
-      : mode==='lift' ? liftForListening(raw) : selected?raw.slice():null;
-    worker=new Worker(new URL('./asr.js?v=full1',import.meta.url),{type:'module'});
+    const mode=!selected?'full':$('mode').value==='lift'?'lift':'clear';
+    const variant={mode,from:bounds[0],to:bounds[1]};
+    const input='dual';
+    const samples=selected?selectedAudio(source,...bounds,mode):null;
+    worker=new Worker(new URL('./asr.js?v=compare1',import.meta.url),{type:'module'});
     const pending=!selected&&review.hasRows()?[]:null;
     review.log('녹취 시작',{rangeSeconds:bounds.map(i=>i/16000),input,selected,
-      listeningProcessing:!selected?source.full.metadata:mode==='original'?null:'clarity-v3 · short-window level control, max +38 dB'});
+      sources:['original',mode],variant,listeningProcessing:!selected?source.full.metadata:'clarity-v3 · short-window level control, max +38 dB'});
     busy(true);$('asrstatus').textContent='이 기기에서 모델을 준비합니다. 첫 실행은 시간이 걸릴 수 있습니다.';
     worker.onmessage=({data})=>{
+      if(data.readOriginal){
+        const originalPacket=source.samples.slice(...data.readOriginal);
+        worker.postMessage({originalPacket},[originalPacket.buffer]);return;
+      }
+      if(data.passError)review.log('후보 인식 실패',{...data.passError,start:data.passError.start+offset,end:data.passError.end+offset});
       if(data.status)$('asrstatus').textContent=data.status;
       if(data.line){
         const {start,end,text}=data.line;
-        const args=[start+offset,end+offset,text,input];
+        const candidates=data.line.candidates;
+        candidates.spans=candidates.spans.map(s=>({...s,start:s.start+offset,end:s.end+offset}));
+        const args=[start+offset,end+offset,text,input,candidates,variant];
         if(pending)pending.push(args);else review.add(...args);
       }
       if(data.error)review.log('녹취 실패',{error:data.error});
@@ -188,7 +205,8 @@ function startAsr(selected){
       }
     };
     worker.onerror=e=>halt('AI 실행 오류 · '+(e.message||'최신 브라우저에서 다시 시도하세요.'));
-    if(selected)worker.postMessage({samples},[samples.buffer]);else worker.postMessage({full:source.full.blob});
+    if(selected){const original=raw.slice();worker.postMessage({samples,raw:original},[samples.buffer,original.buffer]);}
+    else worker.postMessage({full:source.full.blob});
   }catch(e){halt(e.message);}
 }
 $('asr').onclick=()=>startAsr(false);rangeButton.onclick=()=>startAsr(true);
