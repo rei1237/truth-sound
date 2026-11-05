@@ -21,6 +21,7 @@ export async function report(source,rows,events,details){
     status:included.length && included.every(r=>r.reviewedAt&&r.text.trim())?'원본 대조 검수 완료':'검수 전 초안',
     processing:{transcription:'Xenova/whisper-base · 한국어 · 브라우저',modelRevision:'64da57285918e20ea79ea5c88eed7197933abaa8',
       clock:'원본 시작 기준 초',sampleRate:16000,fullEnhancement:source.full?.metadata??null,
+      enhancementVersions:Object.fromEntries(Object.entries(source.versions||{}).map(([key,value])=>[key,value.metadata])),
       speakerEstimation:events.some(e=>e.action==='화자 추정 완료')?'WeSpeaker ResNet34-LM f0c48c298fd835726c27956a5d617bad7115627e · 구간별 음색 유사도 추정':null},
     rows:structuredClone(ordered),events:structuredClone(events)
   };

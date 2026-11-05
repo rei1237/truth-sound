@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https://raw.githubusercontent.com/rei1237/truth-sound/b744f6dcd74d6b0bc9c4f2f3c23da4f847f36533/web/models/; media-src 'self' blob:; worker-src 'self'; object-src 'none'; form-action 'none'; base-uri 'none'">
 <meta name="description" content="내 기기에서 녹음을 열고 작은 목소리를 비교해 들으며 한국어 녹취 초안을 작성하세요.">
 <title>Truth Sound · 녹음 작업실</title>
-<link rel="icon" href="mark.svg"><link rel="stylesheet" href="editor-base.css"><link rel="stylesheet" href="editor.css?v=speakers2">
+<link rel="icon" href="mark.svg"><link rel="stylesheet" href="editor-base.css"><link rel="stylesheet" href="editor.css?v=strong1">
 </head><body class="empty">
 <div id="app">
 <header id="topbar">
@@ -36,9 +36,11 @@
       <div class="recent"><h2>예제 녹음</h2><button id="demo">합성 예제 열기</button></div>
     </div></section>
     <div id="tracks">
+      <div class="fullTools"><label>전체 보정<select id="fullProfile"><option value="strong">강화 · 더 크게, 더 선명하게</option><option value="standard">기본 · 부드럽게</option></select></label>
+        <a id="quickDownload" download hidden>강화 보정 WAV 저장</a></div>
       <div class="row" data-track="original"><div class="ctl"><div class="name"><i></i>원본</div><span class="sub">보정 전 · 원본 대조</span><button class="choose" data-player="original" aria-pressed="true">원본 듣기</button></div>
       <div class="wave" data-player="original"><canvas id="wave" width="1200" height="130" aria-label="원본 파형"></canvas><i class="selectionBand"></i><i class="playhead"></i></div></div>
-      <div class="row" data-track="enhanced"><div class="ctl"><div class="name"><i></i>전체 보정본</div><span class="sub">작은 말소리 선명화</span><button class="choose" data-player="enhanced" disabled aria-pressed="false">보정본 듣기</button></div>
+      <div class="row" data-track="enhanced"><div class="ctl"><div class="name"><i></i><span id="enhancedLabel">전체 보정본</span></div><span class="sub">작은 말소리 선명화</span><button class="choose" data-player="enhanced" disabled aria-pressed="false">보정본 듣기</button></div>
       <div class="wave" data-player="enhanced"><canvas id="enhancedWave" width="1200" height="130" aria-label="보정본 파형"></canvas><i class="selectionBand"></i><i class="playhead"></i></div></div>
       <div class="row transcriptLane"><div class="ctl"><div class="name"><i></i>녹취록</div></div><div id="lane" aria-label="시간순 녹취 구간"></div></div>
       <div id="speakerTracks" aria-label="화자별 발화 구간"></div>
@@ -55,6 +57,7 @@
     <button role="tab" id="tab-export" aria-controls="export" aria-selected="false">내보내기</button></div>
     <div class="panes">
       <section role="tabpanel" id="analysis" aria-labelledby="tab-analysis">
+        <p>전체 녹음은 파형 위에서 보정 강도를 바꾸고 WAV로 저장하세요. 강화 보정은 작은 목소리를 더 키웁니다. 약한 발음도 달라질 수 있으니 원본과 비교하세요.</p>
         <h2>선택 구간 듣기</h2><p>파형에서 최대 30초를 고르세요.</p>
         <fieldset id="selection" disabled><button id="here">재생 위치에서 선택</button><label>청취 방식<select id="mode"><option value="clear">발음 선명화 · 잡음 줄이기</option><option value="lift">작은 말소리 확대</option><option value="original">보정 전</option></select></label>
         <button id="render" class="pri">구간 듣기</button><label class="repeat"><input type="checkbox" id="repeatClip"> 선택 구간 반복</label></fieldset>
@@ -80,4 +83,4 @@
 <footer id="statusbar">
   <fieldset id="bounds" disabled><label>선택 시작<input id="start" type="number" min="0" step="0.001" value="0"></label><label>끝<input id="end" type="number" min="0" step="0.001" value="0"></label></fieldset>
   <span>길이 <b id="spanLength">—</b></span><span>초점 트랙 <b id="focusName">—</b></span><span class="sp"></span><span>전체 <b id="endtime">—</b></span>
-</footer></div><audio id="original" aria-label="원본 녹음"></audio><script type="module" src="app.js?v=short1"></script></body></html>
+</footer></div><audio id="original" aria-label="원본 녹음"></audio><script type="module" src="app.js?v=strong1"></script></body></html>

@@ -76,13 +76,13 @@ export function createEditor(getSource,openFile,onFocus){
   }
   for(const id of ['start','end'])byId(id).addEventListener('input',refreshSelection);
   function seek(id,position){
-    if(id==='enhanced'&&!getSource()?.full)return;
+    if(id==='enhanced'&&(!getSource()?.full||getSource()?.processing))return;
     const old=byId(focus),player=byId(id),playing=!old.paused;
     if(old!==player)old.pause();selectTrack(id);player.currentTime=position;clock(position);
     if(playing&&old!==player)void player.play().catch(()=>{});
   }
   async function toggle(){
-    if(!getSource())return;
+    if(!getSource()||(focus==='enhanced'&&getSource().processing))return;
     const player=byId(focus);
     if(!player.paused){player.pause();return;}
     try{await player.play();}catch{byId('notice').textContent='재생을 시작할 수 없습니다. 파일을 다시 열어 보세요.';}
@@ -116,7 +116,7 @@ export function createEditor(getSource,openFile,onFocus){
   }
   for(const wave of document.querySelectorAll('.wave')){
     wave.onpointerdown=e=>{
-      if(e.button!==0||!getSource()||(wave.dataset.player==='enhanced'&&!getSource().full))return;
+      if(e.button!==0||!getSource()||(wave.dataset.player==='enhanced'&&(!getSource().full||getSource().processing)))return;
       drag={x:e.clientX,at:pos(e,wave),moved:false};wave.setPointerCapture(e.pointerId);
     };
     wave.onpointermove=e=>{if(drag&&wave.hasPointerCapture(e.pointerId)&&Math.abs(e.clientX-drag.x)>3){drag.moved=true;select(drag.at,pos(e,wave));}};
@@ -161,8 +161,8 @@ export function createEditor(getSource,openFile,onFocus){
   }
   async function corrected(source){
     document.querySelector('.choose[data-player=enhanced]').disabled=false;
-    const canvas=byId('enhancedWave');
-    const peaks=await enhancedPeaks(source.full.blob,canvas.width,()=>getSource()===source);
+    const canvas=byId('enhancedWave'),version=source.full;
+    const peaks=await enhancedPeaks(version.blob,canvas.width,()=>getSource()===source&&source.full===version);
     if(peaks)drawPeaks(canvas,peaks,'#41d095');
   }
   return {loaded,corrected,tab,refreshSelection};

@@ -23,3 +23,13 @@ test('same review snapshot ties DOCX to the audit; excluded speech stays only in
   assert.equal(edited.status,'검수 전 초안');
   assert.notEqual(edited.reviewHash,audit.reviewHash);
 });
+
+test('audit keeps both enhancement hashes and the profile used for each transcript row',async()=>{
+  const versions={standard:{metadata:{profile:'standard',sha256:'s'}},strong:{metadata:{profile:'strong',sha256:'l'}}};
+  const file={name:'합성.wav',hash:'a',bytes:32000,samples:new Float32Array(16000),versions,full:versions.standard};
+  const row={id:'r1',start:0,end:1,text:'검수 전',variant:{mode:'full',profile:'strong'}};
+  const record=await report(file,[row],[],{});
+  assert.equal(record.processing.fullEnhancement.profile,'standard');
+  assert.equal(record.processing.enhancementVersions[record.rows[0].variant.profile].sha256,'l');
+  assert.equal(record.processing.enhancementVersions.standard.sha256,'s');
+});

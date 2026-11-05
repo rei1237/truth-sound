@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {block,overlap,pad,processBlock,waveBlob,readPcm} from '../../web/full-audio.js';
+import {block,overlap,pad,processBlock,waveBlob,readPcm,fullVersion} from '../../web/full-audio.js';
 import {speechWindows,uncoveredSpeech,padShortSpeech} from '../../web/speech-windows.js';
 test('recover a faint 80ms reply and pad short input without shifting stored timestamps',()=>{
   const x=new Float32Array(16000);x.fill(.0005,6400,7680);
@@ -22,7 +22,7 @@ test('pause boundaries partition the entire recording without dropping a short f
   assert.equal(spans[0][0],0);assert.equal(spans.at(-1)[1],x.length);
   assert.ok(spans.every(([a],i)=>!i||a===spans[i-1][1]));
 });
-test('continuous render preserves the sample clock across seams and the partial final block',async()=>{
+for(const profile of ['standard','strong'])test(profile+' render preserves the sample clock across seams and the partial final block',async()=>{
   const n=2*block+83,sr=16000;
   const raw=Float32Array.from({length:n},(_,i)=>{
     const tone=f=>Math.sin(2*Math.PI*i*f/sr);
@@ -33,7 +33,7 @@ test('continuous render preserves the sample clock across seams and the partial 
   let tail=null,seam=null;const parts=[];
   for(let s=0;s<n;s+=block){
     const count=Math.min(block,n-s),a=Math.max(0,s-pad),t=Math.min(overlap,n-s-count);
-    const out=processBlock(raw.subarray(a,s+count+t+pad),s-a,count,t,tail);
+    const out=processBlock(raw.subarray(a,s+count+t+pad),s-a,count,t,tail,profile);
     tail=out.tail;parts.push(out.pcm);
     if(s===0)seam=tail.slice(0,32);
   }
@@ -48,4 +48,15 @@ test('continuous render preserves the sample clock across seams and the partial 
   assert.ok(seam.every((v,i)=>Math.abs(y[block+i]-v)<.012));
   assert.deepEqual(await readPcm(blob,block-2,block+3),y.slice(block-2,block+3));
   assert.ok(y.every(v=>Math.abs(v)<=.941));
+});
+
+test('changing the active enhancement does not change the audio behind previous transcript candidates',()=>{
+  const standard={blob:new Blob(['standard'])},strong={blob:new Blob(['strong'])};
+  const source={full:standard,versions:{standard,strong}};
+  const row={variant:{mode:'full',profile:'strong'}};
+  assert.equal(fullVersion(source,row),strong);
+  source.full=strong;
+  assert.equal(fullVersion(source,{variant:{profile:'standard'}}),standard);
+  assert.equal(fullVersion(source,{variant:{mode:'full'}}),standard);
+  assert.throws(()=>fullVersion(source,{variant:{profile:'missing'}}),/보정본/);
 });

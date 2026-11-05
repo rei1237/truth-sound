@@ -1,5 +1,5 @@
-import {bundleReport,download,effectiveSpeaker,formatTime,report,textReport,wordReport} from './report.js?v=compare1';
-import {readPcm,waveBlob} from './full-audio.js';
+import {bundleReport,download,effectiveSpeaker,formatTime,report,textReport,wordReport} from './report.js?v=strong1';
+import {readPcm,waveBlob,fullVersion} from './full-audio.js?v=strong1';
 const $=id=>document.getElementById(id);
 const now=()=>new Date().toISOString();
 function el(tag,text=''){const node=document.createElement(tag);node.textContent=text;return node;}
@@ -45,7 +45,8 @@ export function createReview(getSource,getRange,reviewAudio){
     }catch{if(token===playRevision){stopPreview();status.textContent='보정 구간을 재생할 수 없습니다.';}}
   }
   function updateButtons(){
-    const unavailable=!getSource()||locked||!!speakerWorker;
+    const unavailable=!getSource()||locked||!!speakerWorker||!!getSource()?.processing;
+    $('fullProfile').disabled=locked||!!speakerWorker||!!getSource()?.processing;
     for(const id of ['addLine','word','log','save','bundle'])$(id).disabled=unavailable;
     $('separate').disabled=unavailable||!getSource()?.full;
     if(!rows.length)$('word').disabled=$('bundle').disabled=true;
@@ -116,10 +117,12 @@ export function createReview(getSource,getRange,reviewAudio){
         for(const r of items){
           const a=Math.max(end,Math.round(r.start*16000)),b=Math.min(source.samples.length,Math.round(r.end*16000));
           if(b<=a)continue;
-          parts.push(source.full.blob.slice(44+a*2,44+b*2));length+=b-a;end=b;
+          const version=r.variant?.mode==='full'?fullVersion(source,r):source.full;
+          parts.push(version.blob.slice(44+a*2,44+b*2));length+=b-a;end=b;
         }
         download(waveBlob(parts,length),source.name+'-'+name+'-발화구간.wav');
-        log('화자별 구간 WAV 저장',{speaker:name,source:'full-clarity',rowIds:items.map(r=>r.id)});
+        log('화자별 구간 WAV 저장',{speaker:name,rowIds:items.map(r=>r.id),
+          versions:items.map(r=>({id:r.id,sha256:(r.variant?.mode==='full'?fullVersion(source,r):source.full).metadata.sha256}))});
       });
       save.title='이 화자로 추정된 보정본 구간을 이어 저장합니다. 겹친 목소리도 포함됩니다.';
       controls.append(select,save);
@@ -202,7 +205,7 @@ export function createReview(getSource,getRange,reviewAudio){
     const items=[];
     for(const r of eligible){
       const center=(r.start+r.end)/2,a=Math.round(Math.max(r.start,center-2.5)*16000),b=Math.round(Math.min(r.end,center+2.5)*16000);
-      const samples=usesFull(r)?await readPcm(source.full.blob,a,b):source.samples.slice(a,b);
+      const samples=usesFull(r)?await readPcm(fullVersion(source,r).blob,a,b):source.samples.slice(a,b);
       if(speakerWorker!==job)return;
       items.push({id:r.id,samples});
     }

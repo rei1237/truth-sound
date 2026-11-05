@@ -37,7 +37,7 @@ export function liftForListening(x, speechEvidence) {
   });
 }
 
-export function clarify(x, context) {
+export function clarify(x, context, strong=false) {
   const n = 512, hop = n / 2, fft = new FFT(n);
   const window = Float64Array.from({length:n}, (_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / n));
   const frame = new Float64Array(n), spectrum = fft.createComplexArray(), inverse = fft.createComplexArray();
@@ -57,7 +57,9 @@ export function clarify(x, context) {
   }
   const floor=powers.map(values => values.length<6 ? 0 : values.sort((a,b)=>a-b)[Math.floor(values.length*0.25)]);
   const result=new Float32Array(x.length), weight=new Float32Array(x.length);
-  const bands=[[0,-22],[70,-18],[140,-6],[300,-2],[800,0],[1600,3],[3200,6],[4800,4],[6500,1],[8000,-3]];
+  const bands=strong
+    ? [[0,-30],[85,-22],[140,-12],[300,-5],[700,-1],[1500,4],[3000,5],[4500,3],[6200,-2],[8000,-12]]
+    : [[0,-22],[70,-18],[140,-6],[300,-2],[800,0],[1600,3],[3200,6],[4800,4],[6500,1],[8000,-3]];
   const eq=floor.map((_,k)=>{
     const f=k*RATE/n, right=bands.findIndex(([hz])=>hz>=f);
     if(right<=0) return 10**(bands[0][1]/20);
@@ -71,7 +73,7 @@ export function clarify(x, context) {
     for(let k=0;k<=hop;k++){
       const p=spectrum[2*k]**2+spectrum[2*k+1]**2;
       if(k>=6 && k<=170){voicePower+=p;noisePower+=floor[k];}
-      const gain=Math.sqrt(Math.max(0.05,1-2.4*floor[k]/Math.max(p,1e-15)))*eq[k];
+      const gain=Math.sqrt(Math.max(strong?10**(-15/10):0.05,1-(strong?3.5:2.4)*floor[k]/Math.max(p,1e-15)))*eq[k];
       spectrum[2*k]*=gain; spectrum[2*k+1]*=gain;
     }
     const ratio=voicePower/Math.max(noisePower*3.2,1e-12);
@@ -81,7 +83,8 @@ export function clarify(x, context) {
       result[pos+i]+=inverse[2*i]*window[i]; weight[pos+i]+=window[i]**2;
     }
   }
-  return liftForListening(result.map((v,i)=>v/Math.max(weight[i],1e-10)),evidence);
+  const leveled=liftForListening(result.map((v,i)=>v/Math.max(weight[i],1e-10)),evidence);
+  return strong?leveled.map(v=>0.92*Math.tanh(2*v/0.92)):leveled;
 }
 
 export function wav(x) {
