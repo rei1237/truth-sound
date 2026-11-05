@@ -1,4 +1,4 @@
-import {processBlock} from './full-audio.js?v=strong1';
+import {processBlock} from './full-audio.js?v=precise1';
 let previous=null;
 self.onmessage=({data:{samples,skip,count,tailLength,profile}})=>{
   try{

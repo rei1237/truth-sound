@@ -1,6 +1,6 @@
-import {createReview} from './review.js?v=strong1';
+import {createReview} from './review.js?v=precise1';
 import {createEditor,drawPeaks,peaksFrom} from './editor.js?v=strong1';
-import {renderFull,profiles,fullVersion,readPcm} from './full-audio.js?v=strong1';
+import {renderFull,profiles,fullVersion,readPcm} from './full-audio.js?v=precise1';
 import {clarify,liftForListening,wav} from './audio.js?v=clarity3';
 const $=id=>document.getElementById(id);
 const clock=t=>Math.floor(t/60).toString().padStart(2,'0')+':'+(t%60).toFixed(3).padStart(6,'0');
@@ -83,6 +83,10 @@ function showFull(current){
   }
   $('fullResult').hidden=false;$('quickDownload').hidden=false;
   $('enhancedLabel').textContent=metadata.label;
+  $('profileHelp').textContent=metadata.profile==='precise'
+    ? '짧은 자음과 말끝의 손실을 줄이는 보정입니다. 잡음이 더 남을 수 있으며 발음의 정확성은 원본과 대조하세요.'
+    : metadata.profile==='strong'?'작은 목소리를 크게 증폭합니다. 짧은 자음을 비교하려면 발음 정밀 모드를 선택하세요.'
+    : '기본 잡음 완화와 음량 조절을 적용합니다. 더 크게 들으려면 강화 모드를 선택하세요.';
   document.querySelector('.choose[data-player=enhanced]').disabled=false;
 }
 $('fullProfile').onchange=()=>{if(source)void prepareFull();};

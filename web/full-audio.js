@@ -1,10 +1,12 @@
 // Audio processed here stays on the original 16 kHz sample clock.
-import {clarify} from './audio.js?v=strong1';
+import {clarify} from './audio.js?v=precise1';
 export const block=8*16000, overlap=4000, pad=8000;
 export const method='full-clarity-v1';
 export const profiles={
   standard:{method,label:'기본 보정',noiseReductionDb:13,noiseMultiplier:2.4,localGainMaxDb:38,softLimiter:false},
-  strong:{method:'full-strong-v1',label:'강화 보정',noiseReductionDb:15,noiseMultiplier:3.5,localGainMaxDb:38,outputDriveDb:6.0206,softLimiter:'0.92*tanh(2*x/0.92)',presenceMaxDb:5}
+  strong:{method:'full-strong-v1',label:'강화 보정',noiseReductionDb:15,noiseMultiplier:3.5,localGainMaxDb:38,outputDriveDb:6.0206,softLimiter:'0.92*tanh(2*x/0.92)',presenceMaxDb:5},
+  precise:{method:'full-precise-v1',label:'발음 정밀 보정',noiseReductionDb:9,noiseMultiplier:1.5,onsetNoiseMultiplier:.65,localGainMaxDb:38,
+    spectralMaskSmoothing:'three-bin weighted mean',makeupMax:1.7,peakCeiling:.92,softLimiter:false,presenceMaxDb:4}
 };
 // A transcript keeps the processing version used when its candidates were recognized.
 export function fullVersion(source,row){
@@ -16,7 +18,7 @@ export function fullVersion(source,row){
   return source.versions?.standard||source.full;
 }
 export function processBlock(samples,skip,count,tailLength,previous,profile='standard'){
-  const output=clarify(samples,samples,profile==='strong').subarray(skip,skip+count+tailLength);
+  const output=clarify(samples,samples,profile).subarray(skip,skip+count+tailLength);
   if(previous)for(let i=0;i<Math.min(previous.length,count);i++){
     const t=i/overlap;
     output[i]=previous[i]*(1-t)+output[i]*t;
@@ -40,7 +42,7 @@ export async function readPcm(blob,start,end){
 // Only send one padded window at a time; a long file never needs a second full float buffer.
 export async function renderFull(samples,signal,progress,profile='standard'){
   if(!profiles[profile])throw Error('알 수 없는 보정 방식입니다.');
-  const w=new Worker(new URL('./full-worker.js?v=strong1',import.meta.url),{type:'module'});
+  const w=new Worker(new URL('./full-worker.js?v=precise1',import.meta.url),{type:'module'});
   const aborted=()=>new DOMException('보정이 중지되었습니다.','AbortError');
   try{
     return await new Promise((resolve,reject)=>{

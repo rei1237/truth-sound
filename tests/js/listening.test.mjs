@@ -48,3 +48,23 @@ test('strong mode raises a sub-second quiet voice above standard while lowering 
     assert.deepEqual(clarify(silent,silent,true),silent);
   }
 });
+
+test('precise mode retains a brief sound and avoids saturation harmonics on a clean vowel-like tone',()=>{
+  const x=new Float32Array(48000);
+  for(let i=8000;i<16000;i++)x[i]=.4*Math.sin(2*Math.PI*1000*i/16000);
+  for(let i=24000;i<24640;i++)x[i]=.004*Math.sin(2*Math.PI*3000*i/16000);
+  const precise=clarify(x,x,'precise'),strong=clarify(x,x,'strong');
+  const amplitude=(signal,hz)=>{
+    let re=0,im=0;
+    for(let i=10000;i<14000;i++){const phase=2*Math.PI*hz*i/16000;re+=signal[i]*Math.cos(phase);im+=signal[i]*Math.sin(phase);}
+    return Math.hypot(re,im);
+  };
+  const harmonic=signal=>amplitude(signal,3000)/amplitude(signal,1000);
+  assert.ok(harmonic(precise)<.001);
+  assert.ok(harmonic(strong)>.02);
+  const energy=signal=>signal.slice(24000,24640).reduce((sum,v)=>sum+v*v,0);
+  assert.ok(energy(precise)>energy(x)*10);
+  assert.equal(precise.length,x.length);
+  assert.ok(precise.every(v=>Number.isFinite(v)&&Math.abs(v)<=.920001));
+  assert.deepEqual(clarify(new Float32Array(23),new Float32Array(23),'precise'),new Float32Array(23));
+});
