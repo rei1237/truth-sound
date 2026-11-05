@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {clarify,liftForListening} from '../../web/audio.js';
+import {clarify,liftForListening,limitForListening} from '../../web/audio.js';
 
 test('a loud passage does not cap the gain on a later faint syllable',()=>{
   const sr=16000;
@@ -67,4 +67,26 @@ test('precise mode retains a brief sound and avoids saturation harmonics on a cl
   assert.equal(precise.length,x.length);
   assert.ok(precise.every(v=>Number.isFinite(v)&&Math.abs(v)<=.920001));
   assert.deepEqual(clarify(new Float32Array(23),new Float32Array(23),'precise'),new Float32Array(23));
+});
+
+test('maximum listening raises very faint speech while controlling sudden peaks and preserving silence',()=>{
+  const x=Float32Array.from({length:48000},(_,i)=>{
+    const tone=f=>Math.sin(2*Math.PI*f*i/16000);
+    return .0001*tone(60)+(i>4000&&i<12000?.7*tone(350):0)
+      +(i>25600&&i<29600?.0003*tone(220)+.0002*tone(3000):0);
+  });
+  const max=clarify(x,x,'maximum'),strong=clarify(x,x,'strong');
+  const power=(s,a,b)=>s.slice(a,b).reduce((sum,v)=>sum+v*v,0);
+  assert.ok(10*Math.log10(power(max,26000,29200)/power(strong,26000,29200))>5);
+  assert.ok(power(max,35000,43000)<power(x,35000,43000));
+  assert.ok(max.every(v=>Number.isFinite(v)&&Math.abs(v)<=.920001));
+  const spikes=Float32Array.from({length:10000},(_,i)=>i%157===0?1.2:.03);
+  const limited=limitForListening(spikes);
+  assert.ok(limited.every(v=>v>=0&&v<=.920001));
+  assert.ok(limited[0]>.8);
+  assert.equal(limited.length,spikes.length);
+  for(const length of [0,1,23,16000]){
+    const silence=new Float32Array(length);
+    assert.deepEqual(clarify(silence,silence,'maximum'),silence);
+  }
 });

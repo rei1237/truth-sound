@@ -9,7 +9,7 @@ export function lift(x) {
 }
 
 // Local level control for listening. One loud syllable must not limit every quieter one.
-export function liftForListening(x, speechEvidence) {
+export function liftForListening(x, speechEvidence, intensive=false) {
   if (!x.length) return x.slice();
   const hop=160, count=Math.ceil(x.length/hop);
   const energy=new Float64Array(count+1), peaks=new Float64Array(count);
@@ -20,11 +20,13 @@ export function liftForListening(x, speechEvidence) {
   for(let k=0;k<count;k++)energy[k+1]+=energy[k];
   const gains=new Float64Array(count);
   for(let k=0;k<count;k++){
-    const left=Math.max(0,k-3), right=Math.min(count,k+4);
+    const radius=intensive?1:3;
+    const left=Math.max(0,k-radius), right=Math.min(count,k+radius+1);
     const rms=Math.sqrt((energy[right]-energy[left])/(Math.min(right*hop,x.length)-left*hop));
     const confidence=speechEvidence ? speechEvidence[Math.min(speechEvidence.length-1,Math.floor(k*hop/256)+1)] : 1;
     // Reduce gain in background-only frames. A raised noise floor obscures word endings.
-    const wanted=confidence*Math.min(38,Math.max(0,20*Math.log10(0.14/Math.max(rms,1e-9))));
+    const target=intensive ? .28 : .14;
+    const wanted=(intensive?Math.sqrt(confidence):confidence)*Math.min(intensive?48:38,Math.max(0,20*Math.log10(target/Math.max(rms,1e-9))));
     gains[k]=10**(wanted/20);
   }
   const safe=gains.map((gain,k)=>{
@@ -37,8 +39,24 @@ export function liftForListening(x, speechEvidence) {
   });
 }
 
+// Peak-aware gain with 10ms lookahead and 80ms recovery, no hard clipping or sample saturation.
+export function limitForListening(x,drive=2.5){
+  const hop=160,count=Math.ceil(x.length/hop),peaks=new Float32Array(count),gains=new Float64Array(count);
+  for(let i=0;i<x.length;i++)peaks[Math.floor(i/hop)]=Math.max(peaks[Math.floor(i/hop)],Math.abs(x[i]));
+  let previous=drive;const release=1-Math.exp(-.01/.08);
+  for(let k=0;k<count;k++){
+    const peak=Math.max(peaks[Math.max(0,k-1)],peaks[k],peaks[Math.min(count-1,k+1)]);
+    const allowed=Math.min(drive,.92/Math.max(peak,1e-12));
+    gains[k]=previous=Math.min(allowed,previous+(drive-previous)*release);
+  }
+  return x.map((value,i)=>{
+    const k=Math.floor(i/hop),t=(i%hop)/hop;
+    return value*(gains[k]+(gains[Math.min(count-1,k+1)]-gains[k])*t);
+  });
+}
+
 export function clarify(x, context, profile='standard') {
-  const strong=profile===true||profile==='strong',precise=profile==='precise';
+  const maximum=profile==='maximum',strong=profile===true||profile==='strong',precise=profile==='precise'||maximum;
   const n = 512, hop = n / 2, fft = new FFT(n);
   const window = Float64Array.from({length:n}, (_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / n));
   const frame = new Float64Array(n), spectrum = fft.createComplexArray(), inverse = fft.createComplexArray();
@@ -94,7 +112,8 @@ export function clarify(x, context, profile='standard') {
       result[pos+i]+=inverse[2*i]*window[i]; weight[pos+i]+=window[i]**2;
     }
   }
-  const leveled=liftForListening(result.map((v,i)=>v/Math.max(weight[i],1e-10)),evidence);
+  const leveled=liftForListening(result.map((v,i)=>v/Math.max(weight[i],1e-10)),evidence,maximum);
+  if(maximum)return limitForListening(leveled);
   if(precise){
     let peak=0;for(const value of leveled)peak=Math.max(peak,Math.abs(value));
     // Linear makeup avoids the extra harmonics of the stronger mode's soft saturation.

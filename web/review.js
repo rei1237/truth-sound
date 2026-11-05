@@ -1,5 +1,5 @@
 import {bundleReport,download,effectiveSpeaker,formatTime,report,textReport,wordReport} from './report.js?v=strong1';
-import {readPcm,waveBlob,fullVersion} from './full-audio.js?v=precise1';
+import {readPcm,waveBlob,fullVersion} from './full-audio.js?v=max1';
 const $=id=>document.getElementById(id);
 const now=()=>new Date().toISOString();
 function el(tag,text=''){const node=document.createElement(tag);node.textContent=text;return node;}

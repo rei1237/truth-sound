@@ -22,7 +22,7 @@ test('pause boundaries partition the entire recording without dropping a short f
   assert.equal(spans[0][0],0);assert.equal(spans.at(-1)[1],x.length);
   assert.ok(spans.every(([a],i)=>!i||a===spans[i-1][1]));
 });
-for(const profile of ['standard','strong','precise'])test(profile+' render preserves the sample clock across seams and the partial final block',async()=>{
+for(const profile of ['standard','strong','precise','maximum'])test(profile+' render preserves the sample clock across seams and the partial final block',async()=>{
   const n=2*block+83,sr=16000;
   const raw=Float32Array.from({length:n},(_,i)=>{
     const tone=f=>Math.sin(2*Math.PI*i*f/sr);
